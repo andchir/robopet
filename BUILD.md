@@ -160,12 +160,14 @@ android {
     defaultConfig {
         // ... existing config ...
 
+        ndk {
+            // ABIs to support — include all you need
+            abiFilters "arm64-v8a", "x86_64"
+        }
+
         python {
             // Match the Python version in your requirements.txt
             version "3.11"
-
-            // ABIs to support — include all you need
-            abiFilters "arm64-v8a", "x86_64"
 
             pip {
                 // FastAPI stack
@@ -175,33 +177,30 @@ android {
                 install "pydantic>=2.9,<3"
                 install "pydantic-settings>=2.6,<3"
                 install "python-dotenv>=1.0,<2"
+
+                // OpenAI SDK — used for both chat AND Whisper STT API
                 install "openai>=1.55,<2"
 
-                // Vision / audio (use headless OpenCV — no GUI)
-                install "opencv-python-headless>=4.10,<5"
+                // Vision helpers available on Chaquopy's mirror
                 install "numpy>=1.26,<3"
+                install "opencv-python-headless>=4.10,<5"
 
-                // MediaPipe ships a separate wheel for Android:
-                // check https://pypi.org/project/mediapipe/ for the current
-                // Android-compatible release
-                install "mediapipe>=0.10,<1"
-
-                // faster-whisper requires ctranslate2; a pre-built Android
-                // wheel is available from the Systran GitHub releases
-                install "faster-whisper>=1.1,<2"
+                // NOTE: faster-whisper and mediapipe are NOT installed here.
+                // See the note below for the STT strategy used on Android.
             }
         }
     }
 }
 ```
 
-> **Note on MediaPipe and faster-whisper on Android:**
-> - MediaPipe publishes Android-compatible wheels for `arm64-v8a`. If Chaquopy cannot resolve them automatically, download the `.whl` file and install it locally:
->   ```groovy
->   install "path/to/mediapipe-0.10.x-cp311-cp311-android_arm64.whl"
->   ```
-> - `faster-whisper` depends on `ctranslate2`. A compatible Android wheel can be obtained from [CTranslate2 releases](https://github.com/OpenNMT/CTranslate2/releases). Place the `.whl` under `mobile/android/app/src/main/python/` and reference it with a relative path.
-> - If a package is not available for Android, mark it optional in the code and provide a stub.
+> **STT on Android — OpenAI Whisper API instead of faster-whisper**
+>
+> `faster-whisper` requires `ctranslate2`, a native C++ library. No Android-compatible wheel exists on Chaquopy's PyPI mirror, so it cannot be embedded in the APK.
+>
+> **The solution already applied to `backend/app/services/speech_service.py`:**
+> `SpeechService` now calls the **OpenAI Whisper API** (`client.audio.transcriptions.create`) instead of running a local model. This requires only the `openai` package (pure Python + httpx), works perfectly on Android, and produces identical results. The only requirement is a valid `OPENAI_API_KEY` in `.env` and an internet connection on the device.
+>
+> `mediapipe` is excluded for the same reason (no Android wheel). `VisionService` is already a stub in the codebase and will simply return empty results until a future implementation is added.
 
 ### 5.3 — Copy the Python source code into the Android Python source root
 
@@ -428,8 +427,8 @@ adb install mobile/android/app/build/outputs/apk/debug/app-debug.apk
 
 | Problem | Likely cause | Fix |
 |---------|-------------|-----|
-| `Could not resolve mediapipe` | No Android wheel on PyPI | Download the `.whl` manually and install locally |
-| `ctranslate2` import error | Not built for Android ABI | Use a pre-built wheel from CTranslate2 GitHub releases |
+| `No matching distribution found for mediapipe` | No Android wheel in Chaquopy mirror | Remove from pip block; guard `import mediapipe` with `try/except ImportError` |
+| `No matching distribution found for faster-whisper` | `ctranslate2` not available for Android | Remove from pip block; guard `from faster_whisper import ...` with `try/except ImportError` |
 | `CLEARTEXT communication not permitted` | Missing `usesCleartextTraffic` | Add the flag to `AndroidManifest.xml` |
 | WebView shows blank page | Web assets not synced | Re-run `npx cap sync android` |
 | Python server not starting | Activity init order | Ensure `Python.start(...)` is called before `super.onCreate()` |
