@@ -3,7 +3,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'com.robopet.app',
   appName: 'RoboPet',
-  webDir: 'www',
+  webDir: 'www/ru',
   server: {
     cleartext: true,
   },
