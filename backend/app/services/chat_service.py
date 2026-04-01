@@ -181,15 +181,17 @@ class ChatService:
         user_text: str,
         vision: VisionResult | None = None,
         language: str = "en",
+        robot_name: str | None = None,
     ) -> str:
         intent = _detect_intent(user_text, language)
         lang_responses = RESPONSES.get(language, RESPONSES["en"])
         phrases = lang_responses.get(intent, lang_responses["default"])
         response = random.choice(phrases)
+        name = robot_name or settings.robot_name
         logger.info(
             "🧠 Intent detected  lang=%r  input=%r  intent=%r", language, user_text, intent
         )
         logger.info(
             "🎲 Phrase selected  %r  (pool size: %d)", response, len(phrases)
         )
-        return response.format(name=settings.robot_name)
+        return response.format(name=name)

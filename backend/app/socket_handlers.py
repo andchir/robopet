@@ -71,6 +71,7 @@ def register_handlers(sio: socketio.AsyncServer) -> None:
             return
 
         language: str = data.get("language") or settings.language
+        robot_name: str = data.get("robot_name") or settings.robot_name
 
         try:
             audio_bytes = base64.b64decode(audio_b64)
@@ -79,7 +80,7 @@ def register_handlers(sio: socketio.AsyncServer) -> None:
             return
 
         audio_kb = len(audio_bytes) / 1024
-        logger.info("🎤 Audio received  sid=%s  lang=%s  size=%.1f KB", sid, language, audio_kb)
+        logger.info("🎤 Audio received  sid=%s  lang=%s  robot=%s  size=%.1f KB", sid, language, robot_name, audio_kb)
 
         transcription = await speech_service.transcribe(audio_bytes, language=language)
 
@@ -99,7 +100,7 @@ def register_handlers(sio: socketio.AsyncServer) -> None:
             last_vision = session.get("last_vision")
 
         response_text = await chat_service.get_response(
-            transcription, last_vision, language=language
+            transcription, last_vision, language=language, robot_name=robot_name
         )
         emotion = await emotion_service.detect_emotion(response_text)
 
@@ -121,14 +122,15 @@ def register_handlers(sio: socketio.AsyncServer) -> None:
             return
 
         language: str = data.get("language") or settings.language
+        robot_name: str = data.get("robot_name") or settings.robot_name
 
-        logger.info("💬 Chat message    sid=%s  lang=%s  text=%r", sid, language, text)
+        logger.info("💬 Chat message    sid=%s  lang=%s  robot=%s  text=%r", sid, language, robot_name, text)
 
         async with sio.session(sid) as session:
             last_vision = session.get("last_vision")
 
         response_text = await chat_service.get_response(
-            text, last_vision, language=language
+            text, last_vision, language=language, robot_name=robot_name
         )
         emotion = await emotion_service.detect_emotion(response_text)
 

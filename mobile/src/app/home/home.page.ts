@@ -32,9 +32,11 @@ export class HomePage implements OnInit, OnDestroy {
     const host = (await Preferences.get({ key: 'serverHost' })).value ?? '192.168.1.100';
     const port = parseInt((await Preferences.get({ key: 'serverPort' })).value ?? '8000', 10);
     const lang = (await Preferences.get({ key: 'ttsLang' })).value ?? 'en-US';
+    const robotName = (await Preferences.get({ key: 'robotName' })).value ?? 'RoboPet';
 
     this.ttsLang = lang;
     this.socketService.setLanguage(toLangCode(lang));
+    this.socketService.setRobotName(robotName);
     this.socketService.connect(host, port);
 
     this.subs.push(
