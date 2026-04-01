@@ -22,6 +22,7 @@ export class VoiceService {
   }
 
   async startRecording(): Promise<void> {
+    console.log('[Voice] Recording started');
     await VoiceRecorder.startRecording();
     this.recording$.next(true);
   }
@@ -29,19 +30,32 @@ export class VoiceService {
   async stopRecording(): Promise<string> {
     const result = await VoiceRecorder.stopRecording();
     this.recording$.next(false);
-    return result.value.recordDataBase64 ?? '';
+    const audio = result.value.recordDataBase64 ?? '';
+    const kb = ((audio.length * 3) / 4 / 1024).toFixed(1);
+    console.log(`[Voice] Recording stopped — audio size≈${kb} KB`);
+    return audio;
   }
 
   async speak(text: string, lang = 'ru-RU'): Promise<void> {
+    console.log(`[Voice] TTS start  lang=${lang}  text="${text.slice(0, 80)}${text.length > 80 ? '…' : ''}"`);
     this.speaking$.next(true);
+    // Safety timeout: ~90 ms per character + 2 s buffer, minimum 3 s
+    const safetyMs = Math.max(text.length * 90, 3000) + 2000;
+    const safetyTimer = setTimeout(() => {
+      console.warn('[Voice] TTS safety timeout fired — forcing isSpeaking=false');
+      this.speaking$.next(false);
+    }, safetyMs);
     try {
       await TextToSpeech.speak({ text, lang, rate: 1.0 });
+      console.log('[Voice] TTS finished');
     } finally {
+      clearTimeout(safetyTimer);
       this.speaking$.next(false);
     }
   }
 
   async stopSpeaking(): Promise<void> {
+    console.log('[Voice] TTS stopped manually');
     await TextToSpeech.stop();
     this.speaking$.next(false);
   }

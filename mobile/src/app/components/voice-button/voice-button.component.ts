@@ -21,7 +21,9 @@ export class VoiceButtonComponent {
 
   async onPress(): Promise<void> {
     if (!this.permissionGranted) {
+      console.log('[VoiceButton] Requesting microphone permission…');
       this.permissionGranted = await this.voiceService.requestPermission();
+      console.log(`[VoiceButton] Permission ${this.permissionGranted ? 'granted' : 'denied'}`);
       if (!this.permissionGranted) return;
     }
     await this.voiceService.startRecording();
@@ -29,6 +31,10 @@ export class VoiceButtonComponent {
 
   async onRelease(): Promise<void> {
     const audioBase64 = await this.voiceService.stopRecording();
-    this.socketService.sendAudioData(audioBase64);
+    if (audioBase64) {
+      this.socketService.sendAudioData(audioBase64);
+    } else {
+      console.warn('[VoiceButton] Empty audio — not sending');
+    }
   }
 }

@@ -297,27 +297,15 @@ export class RobotFaceComponent implements OnInit, OnDestroy {
     const mw = 42 * scale;
     const curve = params.mouthCurve * scale;
 
-    let openAmount = params.mouthOpen;
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.lineWidth = 3 * scale;
+    ctx.lineCap = 'round';
+
     if (this.isSpeaking) {
       const w1 = Math.sin(this.speakPhase);
       const w2 = Math.sin(this.speakPhase * 2.3) * 0.4;
       const w3 = Math.sin(this.speakPhase * 0.7) * 0.3;
-      openAmount = Math.max(2, 7 + (w1 + w2 + w3) * 6);
-    }
-
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.lineWidth = 3 * scale;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    ctx.moveTo(x - mw, y);
-    ctx.bezierCurveTo(
-      x - mw * 0.35, y + curve,
-      x + mw * 0.35, y + curve,
-      x + mw, y,
-    );
-    ctx.stroke();
-
-    if (openAmount > 1) {
+      const openAmount = Math.max(2, 7 + (w1 + w2 + w3) * 6);
       const oh = openAmount * scale;
       const openY = y + Math.max(curve * 0.35, 0);
 
@@ -326,12 +314,17 @@ export class RobotFaceComponent implements OnInit, OnDestroy {
       ctx.ellipse(x, openY, mw * 0.55, oh, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      if (params.mouthCurve > 10 && openAmount > 5) {
-        ctx.fillStyle = '#c04060';
-        ctx.beginPath();
-        ctx.ellipse(x, openY + oh * 0.5, mw * 0.22, oh * 0.28, 0, 0, Math.PI);
-        ctx.fill();
-      }
+      const tongueH = Math.max(oh * 0.3, 4 * scale);
+      ctx.fillStyle = '#c04060';
+      ctx.beginPath();
+      ctx.ellipse(x, openY + oh * 0.35, mw * 0.25, tongueH, 0, 0, Math.PI);
+      ctx.fill();
+    } else {
+      // Closed mouth: bezier smile line only
+      ctx.beginPath();
+      ctx.moveTo(x - mw, y);
+      ctx.bezierCurveTo(x - mw * 0.35, y + curve, x + mw * 0.35, y + curve, x + mw, y);
+      ctx.stroke();
     }
   }
 }
