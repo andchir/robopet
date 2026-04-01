@@ -8,6 +8,7 @@ export class SocketService {
   private socket: Socket | null = null;
   private readonly connected$ = new BehaviorSubject<boolean>(false);
   private readonly robotResponse$ = new Subject<RobotResponse>();
+  private language = 'en';
 
   get isConnected$(): Observable<boolean> {
     return this.connected$.asObservable();
@@ -15,6 +16,10 @@ export class SocketService {
 
   get onRobotResponse$(): Observable<RobotResponse> {
     return this.robotResponse$.asObservable();
+  }
+
+  setLanguage(lang: string): void {
+    this.language = lang;
   }
 
   connect(host: string, port: number): void {
@@ -47,10 +52,10 @@ export class SocketService {
   }
 
   sendAudioData(audioBase64: string): void {
-    this.socket?.emit('audio_data', { audio: audioBase64 });
+    this.socket?.emit('audio_data', { audio: audioBase64, language: this.language });
   }
 
   sendChatMessage(text: string): void {
-    this.socket?.emit('chat_message', { text });
+    this.socket?.emit('chat_message', { text, language: this.language });
   }
 }

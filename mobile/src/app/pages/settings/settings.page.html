@@ -11,6 +11,28 @@
   <ion-list>
     <ion-item>
       <ion-input
+        label="Имя робота"
+        labelPlacement="stacked"
+        type="text"
+        [(ngModel)]="robotName"
+        placeholder="RoboPet"
+        (ionBlur)="save()">
+      </ion-input>
+    </ion-item>
+
+    <ion-item>
+      <ion-select
+        label="Язык"
+        labelPlacement="stacked"
+        [(ngModel)]="ttsLang"
+        (ionChange)="save()">
+        <ion-select-option value="en-US">English</ion-select-option>
+        <ion-select-option value="ru-RU">Русский</ion-select-option>
+      </ion-select>
+    </ion-item>
+
+    <ion-item>
+      <ion-input
         label="IP сервера"
         labelPlacement="stacked"
         type="text"
@@ -39,17 +61,6 @@
         (ionChange)="save()">
         <ion-select-option value="front">Фронтальная</ion-select-option>
         <ion-select-option value="rear">Основная</ion-select-option>
-      </ion-select>
-    </ion-item>
-
-    <ion-item>
-      <ion-select
-        label="Язык TTS"
-        labelPlacement="stacked"
-        [(ngModel)]="ttsLang"
-        (ionChange)="save()">
-        <ion-select-option value="ru-RU">Русский</ion-select-option>
-        <ion-select-option value="en-US">English</ion-select-option>
       </ion-select>
     </ion-item>
   </ion-list>

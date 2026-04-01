@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     whisper_model: str = "base"
     yolo_model: str = "yolov8n.pt"
 
+    robot_name: str = "RoboPet"
+    language: str = "en"
+
     server_host: str = "0.0.0.0"
     server_port: int = 8000
     log_level: str = "info"
