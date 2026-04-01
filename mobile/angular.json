@@ -19,6 +19,13 @@
             "polyfills": "src/polyfills.ts",
             "tsConfig": "tsconfig.app.json",
             "inlineStyleLanguage": "scss",
+            "allowedCommonJsDependencies": [
+              "@xenova/transformers",
+              "onnxruntime-web",
+              "flatbuffers",
+              "seedrandom",
+              "fft.js"
+            ],
             "assets": [
               {
                 "glob": "**/*",
@@ -39,8 +46,8 @@
               "budgets": [
                 {
                   "type": "initial",
-                  "maximumWarning": "2mb",
-                  "maximumError": "5mb"
+                  "maximumWarning": "4mb",
+                  "maximumError": "8mb"
                 },
                 {
                   "type": "anyComponentStyle",

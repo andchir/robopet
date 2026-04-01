@@ -2,10 +2,19 @@
   expand="block"
   shape="round"
   size="large"
-  [color]="(isRecording$ | async) ? 'danger' : 'primary'"
+  [color]="(state$ | async) === 'recording' ? 'danger'
+         : (state$ | async) === 'loading' || (state$ | async) === 'transcribing' ? 'warning'
+         : 'primary'"
+  [disabled]="(isDisabled$ | async) && !(isRecording$ | async)"
   (touchstart)="onPress()"
   (touchend)="onRelease()"
   (mousedown)="onPress()"
   (mouseup)="onRelease()">
-  <ion-icon slot="icon-only" [name]="(isRecording$ | async) ? 'mic' : 'mic-outline'"></ion-icon>
+  <ion-icon
+    slot="icon-only"
+    [name]="(state$ | async) === 'recording' ? 'mic'
+           : (state$ | async) === 'loading' ? 'cloud-download-outline'
+           : (state$ | async) === 'transcribing' ? 'hourglass-outline'
+           : 'mic-outline'">
+  </ion-icon>
 </ion-button>

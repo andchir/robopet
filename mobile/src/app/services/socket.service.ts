@@ -19,6 +19,10 @@ export class SocketService {
     return this.robotResponse$.asObservable();
   }
 
+  getLanguage(): string {
+    return this.language;
+  }
+
   setLanguage(lang: string): void {
     this.language = lang;
   }

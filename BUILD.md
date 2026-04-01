@@ -10,16 +10,17 @@ This guide explains how to build a **single Android APK** that combines the Ioni
 ┌─────────────────────────────────────────────────┐
 │                  Android APK                     │
 │                                                  │
-│  ┌─────────────────┐   localhost:8000            │
-│  │  Ionic WebView  │ ◄──────────────────────►   │
-│  │  (Angular app)  │                             │
-│  └─────────────────┘   ┌────────────────────┐   │
-│                         │  Python service    │   │
-│  Capacitor plugins:     │  FastAPI + Uvicorn │   │
-│  - Camera Preview       │  Socket.IO         │   │
-│  - Voice Recorder       │  MediaPipe         │   │
-│  - Text-to-Speech       │  Whisper / OpenAI  │   │
-│                         └────────────────────┘   │
+│  ┌─────────────────────────┐   localhost:8000       │
+│  │  Ionic WebView           │ ◄──────────────────►  │
+│  │  (Angular app)           │                        │
+│  │  @xenova/transformers    │  ┌──────────────────┐  │
+│  │  Whisper ONNX (on-device)│  │  Python service  │  │
+│  └─────────────────────────┘  │  FastAPI+Uvicorn  │  │
+│                                │  Socket.IO       │  │
+│  Capacitor plugins:            │  MediaPipe (stub)│  │
+│  - Camera Preview              └──────────────────┘  │
+│  - Voice Recorder                                     │
+│  - Text-to-Speech                                     │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -193,12 +194,19 @@ android {
 }
 ```
 
-> **STT on Android — OpenAI Whisper API instead of faster-whisper**
+> **STT on Android — on-device Whisper via `@xenova/transformers` in the Ionic WebView**
 >
 > `faster-whisper` requires `ctranslate2`, a native C++ library. No Android-compatible wheel exists on Chaquopy's PyPI mirror, so it cannot be embedded in the APK.
 >
-> **The solution already applied to `backend/app/services/speech_service.py`:**
-> `SpeechService` now calls the **OpenAI Whisper API** (`client.audio.transcriptions.create`) instead of running a local model. This requires only the `openai` package (pure Python + httpx), works perfectly on Android, and produces identical results. The only requirement is a valid `OPENAI_API_KEY` in `.env` and an internet connection on the device.
+> **The solution applied:** STT has been moved entirely to the Ionic/Angular frontend using [`@xenova/transformers`](https://github.com/xenova/transformers.js) — the WebAssembly/ONNX port of Hugging Face Transformers. `WhisperService` (`src/app/services/whisper.service.ts`) lazy-loads the `Xenova/whisper-base` ONNX model into IndexedDB on first use and runs inference in the WebView. After the initial download (~150 MB) the app works fully offline.
+>
+> The new voice flow:
+> 1. User holds the mic button → `capacitor-voice-recorder` captures audio.
+> 2. On release → `WhisperService.transcribe()` decodes the audio via the Web Audio API, resamples to 16 kHz, and runs Whisper inference locally.
+> 3. The resulting text is sent as a `chat_message` WebSocket event (no `audio_data` event is used anymore).
+> 4. The Python backend (`socket_handlers.py`) processes `chat_message` as before → LLM → `robot_response`.
+>
+> The button shows a **yellow `cloud-download-outline` icon** while the model is being downloaded, and a **yellow `hourglass-outline` icon** while transcription is running. After that it behaves as before (red `mic` while recording, blue `mic-outline` at idle).
 >
 > `mediapipe` is excluded for the same reason (no Android wheel). `VisionService` is already a stub in the codebase and will simply return empty results until a future implementation is added.
 
