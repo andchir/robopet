@@ -6,8 +6,11 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "build": "ng build",
+    "build": "ng build --configuration production,en",
+    "build:en": "ng build --configuration production,en",
+    "build:ru": "ng build --configuration production,ru",
     "watch": "ng build --watch --configuration development",
+    "extract-i18n": "ng extract-i18n",
     "test": "ng test",
     "lint": "ng lint"
   },
@@ -18,6 +21,7 @@
     "@angular/compiler": "^20.0.0",
     "@angular/core": "^20.0.0",
     "@angular/forms": "^20.0.0",
+    "@angular/localize": "^20.3.18",
     "@angular/platform-browser": "^20.0.0",
     "@angular/platform-browser-dynamic": "^20.0.0",
     "@angular/router": "^20.0.0",

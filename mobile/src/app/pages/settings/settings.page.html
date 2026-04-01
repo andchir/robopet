@@ -3,7 +3,7 @@
     <ion-buttons slot="start">
       <ion-back-button defaultHref="/home"></ion-back-button>
     </ion-buttons>
-    <ion-title>Настройки</ion-title>
+    <ion-title i18n="@@settings.title">Settings</ion-title>
   </ion-toolbar>
 </ion-header>
 
@@ -11,7 +11,8 @@
   <ion-list>
     <ion-item>
       <ion-input
-        label="Имя робота"
+        i18n-label="@@settings.robot-name"
+        label="Robot name"
         labelPlacement="stacked"
         type="text"
         [(ngModel)]="robotName"
@@ -22,7 +23,8 @@
 
     <ion-item>
       <ion-select
-        label="Язык"
+        i18n-label="@@settings.language"
+        label="Language"
         labelPlacement="stacked"
         [(ngModel)]="ttsLang"
         (ionChange)="save()">
@@ -32,35 +34,14 @@
     </ion-item>
 
     <ion-item>
-      <ion-input
-        label="IP сервера"
-        labelPlacement="stacked"
-        type="text"
-        [(ngModel)]="serverHost"
-        placeholder="192.168.1.100"
-        (ionBlur)="save()">
-      </ion-input>
-    </ion-item>
-
-    <ion-item>
-      <ion-input
-        label="Порт"
-        labelPlacement="stacked"
-        type="number"
-        [(ngModel)]="serverPort"
-        placeholder="8000"
-        (ionBlur)="save()">
-      </ion-input>
-    </ion-item>
-
-    <ion-item>
       <ion-select
-        label="Камера"
+        i18n-label="@@settings.camera"
+        label="Camera"
         labelPlacement="stacked"
         [(ngModel)]="cameraPosition"
         (ionChange)="save()">
-        <ion-select-option value="front">Фронтальная</ion-select-option>
-        <ion-select-option value="rear">Основная</ion-select-option>
+        <ion-select-option value="front" i18n="@@settings.camera-front">Front</ion-select-option>
+        <ion-select-option value="rear" i18n="@@settings.camera-rear">Rear</ion-select-option>
       </ion-select>
     </ion-item>
   </ion-list>

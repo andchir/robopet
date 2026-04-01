@@ -15,13 +15,6 @@
       <app-robot-face></app-robot-face>
     </div>
 
-    <div class="status-bar">
-      <ion-chip [color]="connected ? 'success' : 'medium'">
-        <ion-icon [name]="connected ? 'wifi' : 'wifi-outline'"></ion-icon>
-        <ion-label>{{ connected ? 'Подключено' : 'Нет связи' }}</ion-label>
-      </ion-chip>
-    </div>
-
     <div class="controls">
       <app-voice-button></app-voice-button>
     </div>

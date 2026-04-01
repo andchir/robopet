@@ -1,7 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { Observable, combineLatest, map } from 'rxjs';
 import { VoiceService } from '../../services/voice.service';
-import { SocketService } from '../../services/socket.service';
+import { ChatService } from '../../services/chat.service';
 import { WhisperService } from '../../services/whisper.service';
 
 @Component({
@@ -24,7 +24,7 @@ export class VoiceButtonComponent implements OnInit {
 
   constructor(
     private voiceService: VoiceService,
-    private socketService: SocketService,
+    private chatService: ChatService,
     private whisperService: WhisperService,
   ) {
     this.isRecording$ = this.voiceService.isRecording$;
@@ -47,7 +47,6 @@ export class VoiceButtonComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    // Start downloading the model in the background so it's ready when needed.
     this.whisperService.preload();
   }
 
@@ -68,7 +67,7 @@ export class VoiceButtonComponent implements OnInit {
       return;
     }
 
-    const lang = this.socketService.getLanguage();
+    const lang = this.chatService.getLanguage();
     let text = '';
     try {
       text = await this.whisperService.transcribe(audioBase64, lang);
@@ -82,6 +81,6 @@ export class VoiceButtonComponent implements OnInit {
       return;
     }
 
-    this.socketService.sendChatMessage(text);
+    this.chatService.processMessage(text);
   }
 }

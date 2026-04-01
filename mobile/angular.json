@@ -9,6 +9,14 @@
       "root": "",
       "sourceRoot": "src",
       "prefix": "app",
+      "i18n": {
+        "sourceLocale": "en",
+        "locales": {
+          "ru": {
+            "translation": "src/locale/messages.ru.xlf"
+          }
+        }
+      },
       "architect": {
         "build": {
           "builder": "@angular-devkit/build-angular:browser",
@@ -71,6 +79,14 @@
               "sourceMap": true,
               "namedChunks": true
             },
+            "en": {
+              "localize": ["en"],
+              "outputPath": "www"
+            },
+            "ru": {
+              "localize": ["ru"],
+              "outputPath": "www"
+            },
             "ci": {
               "progress": false
             }
@@ -95,7 +111,9 @@
         "extract-i18n": {
           "builder": "@angular-devkit/build-angular:extract-i18n",
           "options": {
-            "buildTarget": "app:build"
+            "buildTarget": "app:build",
+            "outputPath": "src/locale",
+            "outFile": "messages.xlf"
           }
         },
         "test": {
