@@ -1,0 +1,31 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-title>RoboPet</ion-title>
+    <ion-buttons slot="end">
+      <ion-button routerLink="/settings">
+        <ion-icon slot="icon-only" name="settings-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true">
+  <div class="home-layout">
+    <div class="face-area">
+      <app-robot-face></app-robot-face>
+    </div>
+
+    <div class="status-bar">
+      <ion-chip [color]="connected ? 'success' : 'medium'">
+        <ion-icon [name]="connected ? 'wifi' : 'wifi-outline'"></ion-icon>
+        <ion-label>{{ connected ? 'Подключено' : 'Нет связи' }}</ion-label>
+      </ion-chip>
+    </div>
+
+    <div class="controls">
+      <app-voice-button></app-voice-button>
+    </div>
+  </div>
+
+  <app-camera-view></app-camera-view>
+</ion-content>

@@ -1,0 +1,25 @@
+import { NgModule } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { IonicModule } from '@ionic/angular';
+import { FormsModule } from '@angular/forms';
+import { HomePage } from './home.page';
+import { HomePageRoutingModule } from './home-routing.module';
+import { RobotFaceComponent } from '../components/robot-face/robot-face.component';
+import { CameraViewComponent } from '../components/camera-view/camera-view.component';
+import { VoiceButtonComponent } from '../components/voice-button/voice-button.component';
+
+@NgModule({
+  imports: [
+    CommonModule,
+    FormsModule,
+    IonicModule,
+    HomePageRoutingModule,
+  ],
+  declarations: [
+    HomePage,
+    RobotFaceComponent,
+    CameraViewComponent,
+    VoiceButtonComponent,
+  ],
+})
+export class HomePageModule {}

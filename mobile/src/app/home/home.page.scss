@@ -1,0 +1,27 @@
+.home-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 16px;
+}
+
+.face-area {
+  flex: 1;
+  min-height: 0;
+}
+
+.status-bar {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.controls {
+  display: flex;
+  justify-content: center;
+  padding: 16px 0;
+
+  app-voice-button {
+    width: 80px;
+  }
+}
