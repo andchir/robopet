@@ -1,14 +1,21 @@
 import { Injectable, NgZone } from '@angular/core';
+import { Capacitor } from '@capacitor/core';
 import { CameraPreview, CameraPreviewOptions } from '@capacitor-community/camera-preview';
 
 @Injectable({ providedIn: 'root' })
 export class CameraService {
   private capturing = false;
   private captureInterval: ReturnType<typeof setInterval> | null = null;
+  private started = false;
 
   constructor(private zone: NgZone) {}
 
+  get isAvailable(): boolean {
+    return Capacitor.isNativePlatform();
+  }
+
   async start(options?: Partial<CameraPreviewOptions>): Promise<void> {
+    if (!this.isAvailable) return;
     await CameraPreview.start({
       position: 'front',
       toBack: true,
@@ -16,15 +23,19 @@ export class CameraService {
       disableAudio: true,
       ...options,
     });
+    this.started = true;
   }
 
   async stop(): Promise<void> {
     this.stopCapture();
-    await CameraPreview.stop();
+    if (this.started) {
+      await CameraPreview.stop();
+      this.started = false;
+    }
   }
 
   startCapture(callback: (base64: string) => void, intervalMs = 300): void {
-    if (this.capturing) return;
+    if (this.capturing || !this.started) return;
     this.capturing = true;
 
     this.captureInterval = setInterval(async () => {
@@ -46,6 +57,6 @@ export class CameraService {
   }
 
   async flip(): Promise<void> {
-    await CameraPreview.flip();
+    if (this.started) await CameraPreview.flip();
   }
 }
