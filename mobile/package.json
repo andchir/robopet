@@ -8,7 +8,7 @@
     "start": "ng serve",
     "build": "ng build --configuration production,en",
     "build:en": "ng build --configuration production,en",
-    "build:ru": "ng build --configuration production,ru",
+    "build:ru": "ng build --configuration production,ru && cp -a www/ru/. www/ && rm -rf www/ru && sed -i 's|<base href=\"/ru/\">|<base href=\"/\">|' www/index.html",
     "watch": "ng build --watch --configuration development",
     "extract-i18n": "ng extract-i18n",
     "test": "ng test",

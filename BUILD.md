@@ -207,13 +207,15 @@ npx cap open android
 ## Quick Reference — Full Build Sequence
 
 ```bash
-# 1. Install dependencies
+# 1. Install dependencies (once)
 cd mobile && npm install
 
-# 2. Build web assets (choose locale)
-npm run build:en   # or: npm run build:ru
+# 2. Build web assets — choose locale
+npm run build:en   # English
+# or:
+npm run build:ru   # Russian
 
-# 3. Sync Capacitor
+# 3. Sync Capacitor (MUST run after every web build)
 npx cap sync android
 
 # 4. Build APK
@@ -222,6 +224,8 @@ cd android && ./gradlew assembleDebug && cd ../..
 # 5. Deploy
 adb install mobile/android/app/build/outputs/apk/debug/app-debug.apk
 ```
+
+> **Important:** always run `npx cap sync android` after `npm run build:*`. Without it the Android project uses stale web assets from the previous build.
 
 ---
 
