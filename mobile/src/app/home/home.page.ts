@@ -1,7 +1,7 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { Preferences } from '@capacitor/preferences';
-import { ChatService, SttMode } from '../services/chat.service';
+import { ChatService, LlmSettings, SttMode } from '../services/chat.service';
 import { EmotionService } from '../services/emotion.service';
 import { VoiceService } from '../services/voice.service';
 import { RobotResponse } from '../models/types';
@@ -31,11 +31,21 @@ export class HomePage implements OnInit, OnDestroy {
     const lang = (await Preferences.get({ key: 'ttsLang' })).value ?? 'en-US';
     const robotName = (await Preferences.get({ key: 'robotName' })).value ?? 'RoboPet';
     const sttMode = ((await Preferences.get({ key: 'sttMode' })).value ?? 'native') as SttMode;
+    const llmBaseUrl = (await Preferences.get({ key: 'llmBaseUrl' })).value ?? '';
+    const llmApiKey = (await Preferences.get({ key: 'llmApiKey' })).value ?? '';
+    const llmModelName = (await Preferences.get({ key: 'llmModelName' })).value ?? '';
 
     this.ttsLang = lang;
     this.chatService.setLanguage(toLangCode(lang));
     this.chatService.setRobotName(robotName);
     this.chatService.setSttMode(sttMode);
+
+    const llmSettings: LlmSettings = {
+      baseUrl: llmBaseUrl,
+      apiKey: llmApiKey,
+      modelName: llmModelName,
+    };
+    this.chatService.setLlmSettings(llmSettings);
 
     this.subs.push(
       this.chatService.onResponse$.subscribe((resp: RobotResponse) => {

@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { Preferences } from '@capacitor/preferences';
-import { ChatService, SttMode } from '../../services/chat.service';
+import { ChatService, LlmSettings, SttMode } from '../../services/chat.service';
 
 /** Convert a BCP-47 tag like "ru-RU" or "en-US" to the short code "ru" / "en". */
 function toLangCode(bcp47: string): string {
@@ -18,6 +18,9 @@ export class SettingsPage implements OnInit {
   ttsLang = 'en-US';
   robotName = 'RoboPet';
   sttMode: SttMode = 'native';
+  llmBaseUrl = 'https://api.openai.com/v1';
+  llmApiKey = '';
+  llmModelName = 'gpt-4o-mini';
 
   constructor(private chatService: ChatService) {}
 
@@ -26,11 +29,17 @@ export class SettingsPage implements OnInit {
     const lang = await Preferences.get({ key: 'ttsLang' });
     const name = await Preferences.get({ key: 'robotName' });
     const sttMode = await Preferences.get({ key: 'sttMode' });
+    const llmBaseUrl = await Preferences.get({ key: 'llmBaseUrl' });
+    const llmApiKey = await Preferences.get({ key: 'llmApiKey' });
+    const llmModelName = await Preferences.get({ key: 'llmModelName' });
 
     if (camera.value) this.cameraPosition = camera.value as 'front' | 'rear';
     if (lang.value) this.ttsLang = lang.value;
     if (name.value) this.robotName = name.value;
     if (sttMode.value) this.sttMode = sttMode.value as SttMode;
+    if (llmBaseUrl.value) this.llmBaseUrl = llmBaseUrl.value;
+    if (llmApiKey.value) this.llmApiKey = llmApiKey.value;
+    if (llmModelName.value) this.llmModelName = llmModelName.value;
   }
 
   async save(): Promise<void> {
@@ -38,9 +47,19 @@ export class SettingsPage implements OnInit {
     await Preferences.set({ key: 'ttsLang', value: this.ttsLang });
     await Preferences.set({ key: 'robotName', value: this.robotName });
     await Preferences.set({ key: 'sttMode', value: this.sttMode });
+    await Preferences.set({ key: 'llmBaseUrl', value: this.llmBaseUrl });
+    await Preferences.set({ key: 'llmApiKey', value: this.llmApiKey });
+    await Preferences.set({ key: 'llmModelName', value: this.llmModelName });
 
     this.chatService.setLanguage(toLangCode(this.ttsLang));
     this.chatService.setRobotName(this.robotName);
     this.chatService.setSttMode(this.sttMode);
+
+    const llmSettings: LlmSettings = {
+      baseUrl: this.llmBaseUrl,
+      apiKey: this.llmApiKey,
+      modelName: this.llmModelName,
+    };
+    this.chatService.setLlmSettings(llmSettings);
   }
 }

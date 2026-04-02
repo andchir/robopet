@@ -2,7 +2,7 @@ import { Injectable } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
 import { Emotion, RobotResponse } from '../models/types';
 
-type Intent = 'greeting' | 'who_are_you' | 'how_are_you' | 'bye' | 'what_can_you_do' | 'default';
+type Intent = 'greeting' | 'who_are_you' | 'how_are_you' | 'bye' | 'what_can_you_do' | 'default' | 'thinking';
 
 const INTENT_EMOTIONS: Record<Intent, Emotion> = {
   greeting: 'happy',
@@ -11,7 +11,16 @@ const INTENT_EMOTIONS: Record<Intent, Emotion> = {
   bye: 'sad',
   what_can_you_do: 'excited',
   default: 'thinking',
+  thinking: 'thinking'
 };
+
+const SYSTEM_PROMPT =
+  'You are a friendly robot pet named {name}. ' +
+  'You live in your owner\'s phone and communicate with them by voice. ' +
+  'You see the world through the phone\'s camera and can comment on what you see. ' +
+  'Answer briefly (1-3 sentences), in a friendly and characterful way. ' +
+  'If shown objects or gestures — react to them. ' +
+  'Reply in the same language the user spoke to you.';
 
 const RESPONSES: Record<string, Record<Intent, string[]>> = {
   en: {
@@ -57,6 +66,13 @@ const RESPONSES: Record<string, Record<Intent, string[]>> = {
       'Really? Tell me more!',
       'That\'s cool! I love talking to you!',
     ],
+    thinking: [
+      'Wait, let me think about that!',
+      'Hmm, give me a moment...',
+      'Interesting question! Just a second...',
+      'Let me think about this...',
+      'One moment, processing your question!',
+    ],
   },
   ru: {
     greeting: [
@@ -101,7 +117,27 @@ const RESPONSES: Record<string, Record<Intent, string[]>> = {
       'Правда? Расскажи подробнее!',
       'Здорово! Люблю болтать с тобой!',
     ],
+    thinking: [
+      'Подожди, дай-ка подумаю!',
+      'Хм, минуточку...',
+      'Интересный вопрос! Одну секунду...',
+      'Дай мне подумать об этом...',
+      'Момент, обрабатываю твой вопрос!',
+    ],
   },
+};
+
+const ERROR_RESPONSES: Record<string, string[]> = {
+  en: [
+    "Sorry, I can't answer right now!",
+    "Oops, something went wrong. Try again later!",
+    "My brain glitched! Ask me again?",
+  ],
+  ru: [
+    'Извини, я сейчас не могу ответить!',
+    'Ой, что-то пошло не так. Попробуй позже!',
+    'Мои мозги дали сбой! Спроси ещё раз?',
+  ],
 };
 
 // Order matters: more specific phrases first
@@ -173,11 +209,18 @@ function pickRandom<T>(arr: T[]): T {
 
 export type SttMode = 'whisper' | 'native' | 'capacitor';
 
+export interface LlmSettings {
+  baseUrl: string;
+  apiKey: string;
+  modelName: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class ChatService {
   private language = 'en';
   private robotName = 'RoboPet';
   private sttMode: SttMode = 'native';
+  private llmSettings: LlmSettings = { baseUrl: '', apiKey: '', modelName: '' };
   private readonly response$ = new Subject<RobotResponse>();
 
   get onResponse$(): Observable<RobotResponse> {
@@ -204,13 +247,74 @@ export class ChatService {
     return this.sttMode;
   }
 
+  setLlmSettings(settings: LlmSettings): void {
+    this.llmSettings = settings;
+  }
+
+  private isLlmConfigured(): boolean {
+    const { baseUrl, apiKey, modelName } = this.llmSettings;
+    return !!(baseUrl.trim() && apiKey.trim() && modelName.trim());
+  }
+
+  private async callLlm(userText: string): Promise<string | null> {
+    try {
+      const { baseUrl, apiKey, modelName } = this.llmSettings;
+      const url = `${baseUrl.replace(/\/$/, '')}/chat/completions`;
+      const systemPrompt = SYSTEM_PROMPT.replace('{name}', this.robotName);
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model: modelName,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userText },
+          ],
+          max_tokens: 150,
+        }),
+      });
+      if (!response.ok) {
+        console.error(`[Chat] LLM API error: ${response.status} ${response.statusText}`);
+        return null;
+      }
+      const data = await response.json();
+      return (data.choices?.[0]?.message?.content as string) ?? null;
+    } catch (error) {
+      console.error('[Chat] LLM call failed:', error);
+      return null;
+    }
+  }
+
   processMessage(userText: string): void {
     const intent = detectIntent(userText, this.language);
+    console.log(`[Chat] intent="${intent}" lang="${this.language}"`);
+
+    if (intent === 'default' && this.isLlmConfigured()) {
+      const langResponses = RESPONSES[this.language] ?? RESPONSES['en'];
+      const thinkingPhrases = langResponses['thinking'];
+      const thinkingText = pickRandom(thinkingPhrases);
+      this.response$.next({ text: thinkingText, emotion: 'thinking' });
+
+      this.callLlm(userText).then(apiText => {
+        if (apiText) {
+          console.log(`[Chat] LLM response: "${apiText}"`);
+          this.response$.next({ text: apiText.trim(), emotion: 'neutral' });
+        } else {
+          const errorPhrases = ERROR_RESPONSES[this.language] ?? ERROR_RESPONSES['en'];
+          this.response$.next({ text: pickRandom(errorPhrases), emotion: 'sad' });
+        }
+      });
+      return;
+    }
+
     const langResponses = RESPONSES[this.language] ?? RESPONSES['en'];
     const phrases = langResponses[intent] ?? langResponses['default'];
     const text = pickRandom(phrases).replace('{name}', this.robotName);
     const emotion = INTENT_EMOTIONS[intent];
-    console.log(`[Chat] intent="${intent}" lang="${this.language}" text="${text}"`);
+    console.log(`[Chat] text="${text}"`);
     this.response$.next({ text, emotion });
   }
 }
