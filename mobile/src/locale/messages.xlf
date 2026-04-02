@@ -44,6 +44,34 @@
           <context context-type="sourcefile">src/app/pages/settings/settings.page.html</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="settings.stt-mode" datatype="html">
+        <source>Voice recognition mode</source>
+        <target>Voice recognition mode</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/settings/settings.page.html</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.stt-mode-whisper" datatype="html">
+        <source>Whisper AI (offline)</source>
+        <target>Whisper AI (offline)</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/settings/settings.page.html</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.stt-mode-native" datatype="html">
+        <source>Google Speech (Android)</source>
+        <target>Google Speech (Android)</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/settings/settings.page.html</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.stt-mode-capacitor" datatype="html">
+        <source>Native SpeechRecognizer (Android)</source>
+        <target>Native SpeechRecognizer (Android)</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/settings/settings.page.html</context>
+        </context-group>
+      </trans-unit>
     </body>
   </file>
 </xliff>

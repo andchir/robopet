@@ -171,7 +171,7 @@ function pickRandom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-export type SttMode = 'whisper' | 'native';
+export type SttMode = 'whisper' | 'native' | 'capacitor';
 
 @Injectable({ providedIn: 'root' })
 export class ChatService {

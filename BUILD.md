@@ -16,6 +16,9 @@ This guide explains how to build an Android APK for the RoboPet app. The app run
 │  │  WhisperService  — STT via ONNX        │  │
 │  │  (@xenova/transformers, runs locally)  │  │
 │  │                                        │  │
+│  │  NativeSpeechService — Web Speech API  │  │
+│  │  (window.SpeechRecognition, online)    │  │
+│  │                                        │  │
 │  │  ChatService  — keyword-based chat     │  │
 │  │  (en / ru, no network required)        │  │
 │  │                                        │  │
@@ -26,17 +29,32 @@ This guide explains how to build an Android APK for the RoboPet app. The app run
 │  - Voice Recorder  (microphone input)        │
 │  - Text-to-Speech  (voice output)            │
 │  - Camera Preview  (viewfinder)              │
+│  - Speech Recognition  (native STT)          │
 └──────────────────────────────────────────────┘
 ```
 
-Voice flow:
+### STT modes
+
+The app supports three voice recognition modes, selectable in **Settings → Voice recognition mode**:
+
+| Mode | Service | Internet required | Notes |
+|------|---------|:-----------------:|-------|
+| `whisper` | `WhisperService` (`@xenova/transformers`) | First launch only | Model (~150 MB) downloaded from Hugging Face CDN and cached in IndexedDB; fully offline afterwards |
+| `native` | `NativeSpeechService` (Web Speech API) | Yes | Uses `window.SpeechRecognition` inside the WebView — Android/Chrome routes audio to Google servers |
+| `capacitor` | `CapacitorSpeechService` (`@capacitor-community/speech-recognition`) | Usually yes | Uses the native Android `SpeechRecognizer` directly; can work offline on Android 13+ if an offline language pack is installed under Settings → Language → Offline speech recognition |
+
+### Voice flow (Whisper mode)
 
 1. User holds the mic button → `capacitor-voice-recorder` captures audio.
 2. On release → `WhisperService.transcribe()` resamples audio to 16 kHz and runs Whisper ONNX inference locally in the WebView.
 3. The recognised text goes to `ChatService.processMessage()` — pure TypeScript keyword matching, no network call.
 4. `ChatService` emits a `RobotResponse` with text and emotion; the robot face animates and TTS speaks the reply.
 
-The Whisper model (`Xenova/whisper-base`, ~150 MB) is downloaded from Hugging Face CDN on first launch and cached in IndexedDB — after that the app works fully offline.
+### Voice flow (native / capacitor modes)
+
+1. User holds the mic button → recognition starts immediately (no audio buffering).
+2. On release → `stopListening()` is called; the in-flight promise resolves with the final transcript.
+3. Steps 3–4 are identical to Whisper mode above.
 
 ---
 
@@ -48,7 +66,7 @@ The Whisper model (`Xenova/whisper-base`, ~150 MB) is downloaded from Hugging Fa
 | npm | ≥ 10 | bundled with Node |
 | Ionic CLI | ≥ 7 | `npm i -g @ionic/cli` |
 | Angular CLI | ≥ 20 | installed locally via npm |
-| Java JDK | 17 or 21 | `java -version`; required by Android Gradle |
+| Java JDK | 17 or **21** | `java -version`; required by Android Gradle. **Java 22+ is not supported by Gradle 8.x** — see [Troubleshooting](#troubleshooting) |
 | Android Studio | Hedgehog+ (2023.1+) | includes SDK, emulator |
 | Android SDK | API 35 (target) | install via SDK Manager |
 | Git | any | |
@@ -120,7 +138,10 @@ Edit `mobile/android/app/src/main/AndroidManifest.xml` and ensure these permissi
 <uses-permission android:name="android.permission.CAMERA" />
 <uses-permission android:name="android.permission.RECORD_AUDIO" />
 <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+<uses-permission android:name="android.permission.INTERNET" />
 ```
+
+> The `INTERNET` permission is required by the `native` and `capacitor` STT modes (both route audio to Google Speech servers by default). It is also needed on first launch in `whisper` mode to download the model from Hugging Face CDN.
 
 ---
 
@@ -239,3 +260,31 @@ adb install mobile/android/app/build/outputs/apk/debug/app-debug.apk
 | TTS not speaking | Language not installed on device | Install the required language pack in Android Settings → Text-to-Speech |
 | Build error: SDK not found | `ANDROID_HOME` not set | Export `ANDROID_HOME` and add `platform-tools` to `PATH` |
 | i18n strings not updated | XLIFF files out of sync | Run `npm run extract-i18n`, update `messages.ru.xlf`, rebuild |
+| `Unsupported class file major version 6x` | Gradle 8.x does not support Java 22+ | Set `org.gradle.java.home` in `android/gradle.properties` to a JDK 17 or 21 path (see below) |
+| Speech recognition permission denied (`capacitor` mode) | Runtime permission not granted | The app requests it on first mic press; check App Settings → Permissions on the device |
+
+### Fixing the Java version error
+
+If your default `java` is version 22 or higher (check with `java -version`), Gradle will refuse to run with an error like `Unsupported class file major version 6x`. Fix it by pinning Gradle to JDK 21 in `mobile/android/gradle.properties`:
+
+```properties
+org.gradle.java.home=/path/to/jdk-21
+```
+
+Find available JDKs:
+
+```bash
+# Debian / Ubuntu
+update-java-alternatives -l
+
+# macOS (Homebrew)
+/usr/libexec/java_home -V
+```
+
+Example for Ubuntu with OpenJDK 21:
+
+```properties
+org.gradle.java.home=/usr/lib/jvm/java-1.21.0-openjdk-amd64
+```
+
+This setting only affects the Gradle daemon — your system `JAVA_HOME` stays unchanged.

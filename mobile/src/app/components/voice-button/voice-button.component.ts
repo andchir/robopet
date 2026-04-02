@@ -5,6 +5,7 @@ import { VoiceService } from '../../services/voice.service';
 import { ChatService, SttMode } from '../../services/chat.service';
 import { WhisperService } from '../../services/whisper.service';
 import { NativeSpeechService } from '../../services/native-speech.service';
+import { CapacitorSpeechService } from '../../services/capacitor-speech.service';
 
 @Component({
   selector: 'app-voice-button',
@@ -24,31 +25,34 @@ export class VoiceButtonComponent implements OnInit {
 
   private permissionGranted = false;
   private nativeListenPromise: Promise<string> | null = null;
+  private capacitorListenPromise: Promise<string> | null = null;
 
   constructor(
     private voiceService: VoiceService,
     private chatService: ChatService,
     private whisperService: WhisperService,
     private nativeSpeechService: NativeSpeechService,
+    private capacitorSpeechService: CapacitorSpeechService,
   ) {
-    // Combined "is recording / listening" covers both modes.
     this.isRecording$ = combineLatest([
       this.voiceService.isRecording$,
       this.nativeSpeechService.isListening$,
-    ]).pipe(map(([rec, listen]) => rec || listen));
+      this.capacitorSpeechService.isListening$,
+    ]).pipe(map(([rec, listen, capListen]) => rec || listen || capListen));
 
     this.isLoading$ = this.whisperService.isLoading$;
 
-    // Combined "is transcribing / processing" covers both modes.
     this.isTranscribing$ = combineLatest([
       this.whisperService.isTranscribing$,
       this.nativeSpeechService.isProcessing$,
-    ]).pipe(map(([wt, np]) => wt || np));
+      this.capacitorSpeechService.isProcessing$,
+    ]).pipe(map(([wt, np, cp]) => wt || np || cp));
 
     this.isDisabled$ = combineLatest([
       this.whisperService.isBusy$,
       this.nativeSpeechService.isProcessing$,
-    ]).pipe(map(([wb, np]) => wb || np));
+      this.capacitorSpeechService.isProcessing$,
+    ]).pipe(map(([wb, np, cp]) => wb || np || cp));
 
     this.state$ = combineLatest([
       this.isRecording$,
@@ -79,6 +83,8 @@ export class VoiceButtonComponent implements OnInit {
 
     if (mode === 'native') {
       await this.onPressNative();
+    } else if (mode === 'capacitor') {
+      await this.onPressCapacitor();
     } else {
       await this.onPressWhisper();
     }
@@ -89,6 +95,8 @@ export class VoiceButtonComponent implements OnInit {
 
     if (mode === 'native') {
       await this.onReleaseNative();
+    } else if (mode === 'capacitor') {
+      await this.onReleaseCapacitor();
     } else {
       await this.onReleaseWhisper();
     }
@@ -130,7 +138,7 @@ export class VoiceButtonComponent implements OnInit {
     this.chatService.processMessage(text);
   }
 
-  // ── Native (Google Speech) mode ───────────────────────────────────────────
+  // ── Native (Web Speech API) mode ──────────────────────────────────────────
 
   private async onPressNative(): Promise<void> {
     if (!this.nativeSpeechService.isSupported()) {
@@ -139,7 +147,6 @@ export class VoiceButtonComponent implements OnInit {
     }
 
     const lang = this.chatService.getLanguage();
-    // Map short code to BCP-47 so SpeechRecognition recognises the language.
     const bcp47 = lang === 'ru' ? 'ru-RU' : 'en-US';
 
     console.log('[VoiceButton] Starting native recognition, lang=', bcp47);
@@ -167,6 +174,53 @@ export class VoiceButtonComponent implements OnInit {
     }
 
     console.log(`[VoiceButton] Native result: "${text}"`);
+    this.chatService.processMessage(text);
+  }
+
+  // ── Capacitor SpeechRecognition mode ──────────────────────────────────────
+
+  private async onPressCapacitor(): Promise<void> {
+    const available = await this.capacitorSpeechService.isAvailable();
+    if (!available) {
+      console.error('[VoiceButton] Capacitor SpeechRecognition not available on this device');
+      return;
+    }
+
+    if (!this.permissionGranted) {
+      console.log('[VoiceButton] Requesting speech recognition permission…');
+      this.permissionGranted = await this.capacitorSpeechService.requestPermissions();
+      console.log(`[VoiceButton] Permission ${this.permissionGranted ? 'granted' : 'denied'}`);
+      if (!this.permissionGranted) return;
+    }
+
+    const lang = this.chatService.getLanguage();
+    const bcp47 = lang === 'ru' ? 'ru-RU' : 'en-US';
+
+    console.log('[VoiceButton] Starting Capacitor recognition, lang=', bcp47);
+    this.capacitorListenPromise = this.capacitorSpeechService.startListening(bcp47);
+  }
+
+  private async onReleaseCapacitor(): Promise<void> {
+    if (!this.capacitorListenPromise) return;
+
+    this.capacitorSpeechService.stopListening();
+
+    let text = '';
+    try {
+      text = await this.capacitorListenPromise;
+    } catch (err) {
+      console.error('[VoiceButton] Capacitor speech error:', err);
+      return;
+    } finally {
+      this.capacitorListenPromise = null;
+    }
+
+    if (!text) {
+      console.warn('[VoiceButton] Empty Capacitor transcription — not sending');
+      return;
+    }
+
+    console.log(`[VoiceButton] Capacitor result: "${text}"`);
     this.chatService.processMessage(text);
   }
 }
