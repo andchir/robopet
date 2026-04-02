@@ -52,7 +52,8 @@ export class VoiceButtonComponent implements OnInit {
       this.whisperService.isBusy$,
       this.nativeSpeechService.isProcessing$,
       this.capacitorSpeechService.isProcessing$,
-    ]).pipe(map(([wb, np, cp]) => wb || np || cp));
+      this.voiceService.isSpeaking$,
+    ]).pipe(map(([wb, np, cp, speaking]) => wb || np || cp || speaking));
 
     this.state$ = combineLatest([
       this.isRecording$,

@@ -7,6 +7,7 @@ import { BehaviorSubject, Observable } from 'rxjs';
 export class VoiceService {
   private readonly speaking$ = new BehaviorSubject<boolean>(false);
   private readonly recording$ = new BehaviorSubject<boolean>(false);
+  private speakGeneration = 0;
 
   get isSpeaking$(): Observable<boolean> {
     return this.speaking$.asObservable();
@@ -37,20 +38,34 @@ export class VoiceService {
   }
 
   async speak(text: string, lang = 'ru-RU'): Promise<void> {
-    console.log(`[Voice] TTS start  lang=${lang}  text="${text.slice(0, 80)}${text.length > 80 ? '…' : ''}"`);
+    const generation = ++this.speakGeneration;
+    console.log(`[Voice] TTS start  gen=${generation}  lang=${lang}  text="${text.slice(0, 80)}${text.length > 80 ? '…' : ''}"`);
+
+    // Stop any currently playing TTS before starting a new one
+    try { await TextToSpeech.stop(); } catch { /* ignore */ }
+
+    // Another speak() was called while we were stopping — bail out
+    if (generation !== this.speakGeneration) return;
+
     this.speaking$.next(true);
+
     // Safety timeout: ~90 ms per character + 2 s buffer, minimum 3 s
     const safetyMs = Math.max(text.length * 90, 3000) + 2000;
     const safetyTimer = setTimeout(() => {
-      console.warn('[Voice] TTS safety timeout fired — forcing isSpeaking=false');
-      this.speaking$.next(false);
+      if (generation === this.speakGeneration) {
+        console.warn('[Voice] TTS safety timeout fired — forcing isSpeaking=false');
+        this.speaking$.next(false);
+      }
     }, safetyMs);
     try {
       await TextToSpeech.speak({ text, lang, rate: 1.0 });
-      console.log('[Voice] TTS finished');
+      console.log(`[Voice] TTS finished  gen=${generation}`);
     } finally {
       clearTimeout(safetyTimer);
-      this.speaking$.next(false);
+      // Only mark as done if we are still the latest speak() call
+      if (generation === this.speakGeneration) {
+        this.speaking$.next(false);
+      }
     }
   }
 
