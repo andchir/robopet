@@ -55,7 +55,11 @@ export class WhisperService {
     this.loading$.next(true);
     try {
       // Dynamic import keeps the library out of the initial bundle.
-      const { pipeline } = await import('@xenova/transformers');
+      const { pipeline, env } = await import('@xenova/transformers');
+      // Capacitor intercepts https://localhost/* as local asset requests.
+      // Disable local model lookup so the library fetches from HuggingFace CDN
+      // instead of trying https://localhost/models/… (which has no bundled files).
+      env.allowLocalModels = false;
       this.pipe = (await pipeline('automatic-speech-recognition', MODEL_ID, {
         progress_callback: (p: { status: string; name?: string; progress?: number }) => {
           if (p.status === 'progress' && p.name && p.progress !== undefined) {
