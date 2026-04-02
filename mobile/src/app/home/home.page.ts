@@ -1,7 +1,7 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { Preferences } from '@capacitor/preferences';
-import { ChatService } from '../services/chat.service';
+import { ChatService, SttMode } from '../services/chat.service';
 import { EmotionService } from '../services/emotion.service';
 import { VoiceService } from '../services/voice.service';
 import { RobotResponse } from '../models/types';
@@ -30,10 +30,12 @@ export class HomePage implements OnInit, OnDestroy {
   async ngOnInit(): Promise<void> {
     const lang = (await Preferences.get({ key: 'ttsLang' })).value ?? 'en-US';
     const robotName = (await Preferences.get({ key: 'robotName' })).value ?? 'RoboPet';
+    const sttMode = ((await Preferences.get({ key: 'sttMode' })).value ?? 'native') as SttMode;
 
     this.ttsLang = lang;
     this.chatService.setLanguage(toLangCode(lang));
     this.chatService.setRobotName(robotName);
+    this.chatService.setSttMode(sttMode);
 
     this.subs.push(
       this.chatService.onResponse$.subscribe((resp: RobotResponse) => {

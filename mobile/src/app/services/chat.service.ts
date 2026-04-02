@@ -171,10 +171,13 @@ function pickRandom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+export type SttMode = 'whisper' | 'native';
+
 @Injectable({ providedIn: 'root' })
 export class ChatService {
   private language = 'en';
   private robotName = 'RoboPet';
+  private sttMode: SttMode = 'native';
   private readonly response$ = new Subject<RobotResponse>();
 
   get onResponse$(): Observable<RobotResponse> {
@@ -191,6 +194,14 @@ export class ChatService {
 
   getLanguage(): string {
     return this.language;
+  }
+
+  setSttMode(mode: SttMode): void {
+    this.sttMode = mode;
+  }
+
+  getSttMode(): SttMode {
+    return this.sttMode;
   }
 
   processMessage(userText: string): void {

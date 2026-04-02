@@ -1,8 +1,10 @@
 import { Component, OnInit } from '@angular/core';
+import { Preferences } from '@capacitor/preferences';
 import { Observable, combineLatest, map } from 'rxjs';
 import { VoiceService } from '../../services/voice.service';
-import { ChatService } from '../../services/chat.service';
+import { ChatService, SttMode } from '../../services/chat.service';
 import { WhisperService } from '../../services/whisper.service';
+import { NativeSpeechService } from '../../services/native-speech.service';
 
 @Component({
   selector: 'app-voice-button',
@@ -21,16 +23,32 @@ export class VoiceButtonComponent implements OnInit {
   state$: Observable<'idle' | 'recording' | 'loading' | 'transcribing'>;
 
   private permissionGranted = false;
+  private nativeListenPromise: Promise<string> | null = null;
 
   constructor(
     private voiceService: VoiceService,
     private chatService: ChatService,
     private whisperService: WhisperService,
+    private nativeSpeechService: NativeSpeechService,
   ) {
-    this.isRecording$ = this.voiceService.isRecording$;
+    // Combined "is recording / listening" covers both modes.
+    this.isRecording$ = combineLatest([
+      this.voiceService.isRecording$,
+      this.nativeSpeechService.isListening$,
+    ]).pipe(map(([rec, listen]) => rec || listen));
+
     this.isLoading$ = this.whisperService.isLoading$;
-    this.isTranscribing$ = this.whisperService.isTranscribing$;
-    this.isDisabled$ = this.whisperService.isBusy$;
+
+    // Combined "is transcribing / processing" covers both modes.
+    this.isTranscribing$ = combineLatest([
+      this.whisperService.isTranscribing$,
+      this.nativeSpeechService.isProcessing$,
+    ]).pipe(map(([wt, np]) => wt || np));
+
+    this.isDisabled$ = combineLatest([
+      this.whisperService.isBusy$,
+      this.nativeSpeechService.isProcessing$,
+    ]).pipe(map(([wb, np]) => wb || np));
 
     this.state$ = combineLatest([
       this.isRecording$,
@@ -46,11 +64,39 @@ export class VoiceButtonComponent implements OnInit {
     );
   }
 
-  ngOnInit(): void {
-    this.whisperService.preload();
+  async ngOnInit(): Promise<void> {
+    const { value } = await Preferences.get({ key: 'sttMode' });
+    const mode = (value as SttMode) || 'native';
+    this.chatService.setSttMode(mode);
+
+    if (mode === 'whisper') {
+      this.whisperService.preload();
+    }
   }
 
   async onPress(): Promise<void> {
+    const mode = this.chatService.getSttMode();
+
+    if (mode === 'native') {
+      await this.onPressNative();
+    } else {
+      await this.onPressWhisper();
+    }
+  }
+
+  async onRelease(): Promise<void> {
+    const mode = this.chatService.getSttMode();
+
+    if (mode === 'native') {
+      await this.onReleaseNative();
+    } else {
+      await this.onReleaseWhisper();
+    }
+  }
+
+  // ── Whisper (Xenova) mode ──────────────────────────────────────────────────
+
+  private async onPressWhisper(): Promise<void> {
     if (!this.permissionGranted) {
       console.log('[VoiceButton] Requesting microphone permission…');
       this.permissionGranted = await this.voiceService.requestPermission();
@@ -60,7 +106,7 @@ export class VoiceButtonComponent implements OnInit {
     await this.voiceService.startRecording();
   }
 
-  async onRelease(): Promise<void> {
+  private async onReleaseWhisper(): Promise<void> {
     const audioBase64 = await this.voiceService.stopRecording();
     if (!audioBase64) {
       console.warn('[VoiceButton] Empty audio — skipping');
@@ -81,6 +127,46 @@ export class VoiceButtonComponent implements OnInit {
       return;
     }
 
+    this.chatService.processMessage(text);
+  }
+
+  // ── Native (Google Speech) mode ───────────────────────────────────────────
+
+  private async onPressNative(): Promise<void> {
+    if (!this.nativeSpeechService.isSupported()) {
+      console.error('[VoiceButton] Web Speech API not supported on this device');
+      return;
+    }
+
+    const lang = this.chatService.getLanguage();
+    // Map short code to BCP-47 so SpeechRecognition recognises the language.
+    const bcp47 = lang === 'ru' ? 'ru-RU' : 'en-US';
+
+    console.log('[VoiceButton] Starting native recognition, lang=', bcp47);
+    this.nativeListenPromise = this.nativeSpeechService.startListening(bcp47);
+  }
+
+  private async onReleaseNative(): Promise<void> {
+    if (!this.nativeListenPromise) return;
+
+    this.nativeSpeechService.stopListening();
+
+    let text = '';
+    try {
+      text = await this.nativeListenPromise;
+    } catch (err) {
+      console.error('[VoiceButton] Native speech error:', err);
+      return;
+    } finally {
+      this.nativeListenPromise = null;
+    }
+
+    if (!text) {
+      console.warn('[VoiceButton] Empty native transcription — not sending');
+      return;
+    }
+
+    console.log(`[VoiceButton] Native result: "${text}"`);
     this.chatService.processMessage(text);
   }
 }

@@ -44,5 +44,17 @@
         <ion-select-option value="rear" i18n="@@settings.camera-rear">Rear</ion-select-option>
       </ion-select>
     </ion-item>
+
+    <ion-item>
+      <ion-select
+        i18n-label="@@settings.stt-mode"
+        label="Voice recognition mode"
+        labelPlacement="stacked"
+        [(ngModel)]="sttMode"
+        (ionChange)="save()">
+        <ion-select-option value="whisper" i18n="@@settings.stt-mode-whisper">Whisper AI (offline)</ion-select-option>
+        <ion-select-option value="native" i18n="@@settings.stt-mode-native">Google Speech (Android)</ion-select-option>
+      </ion-select>
+    </ion-item>
   </ion-list>
 </ion-content>
