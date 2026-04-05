@@ -11,6 +11,7 @@
     [disabled]="((isDisabled$ | async) && !(isRecording$ | async)) || autoMode"
     (touchstart)="onPress()"
     (touchend)="onRelease()"
+    (touchcancel)="onRelease()"
     (mousedown)="onPress()"
     (mouseup)="onRelease()">
     <ion-icon

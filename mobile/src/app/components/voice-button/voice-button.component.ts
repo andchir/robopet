@@ -117,6 +117,14 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
   }
 
   private async startAutoMode(): Promise<void> {
+    console.log('[AutoMode] startAutoMode() — ensuring permission');
+    const granted = await this.ensurePermission();
+    if (!granted) {
+      console.error('[AutoMode] Permission denied — cannot start auto mode');
+      this.autoMode = false;
+      return;
+    }
+
     console.log('[AutoMode] startAutoMode() — calling vadService.start()');
     await this.vadService.start();
     console.log('[AutoMode] VAD started, pre-starting STT…');
@@ -226,6 +234,14 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
       await new Promise<void>(r => setTimeout(r, 150));
     }
 
+    // Request permission on first interaction. Don't start recording on this
+    // press — the OS dialog steals focus and cancels the touch, so onRelease()
+    // would never fire (or fire at the wrong time), leaving the button stuck.
+    if (!this.permissionGranted) {
+      await this.ensurePermission();
+      return;
+    }
+
     const mode = this.chatService.getSttMode();
     if (mode === 'native') {
       await this.onPressNative();
@@ -236,20 +252,33 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
     }
   }
 
+  private async ensurePermission(): Promise<boolean> {
+    if (this.permissionGranted) return true;
+
+    const mode = this.chatService.getSttMode();
+    if (mode === 'capacitor') {
+      this.permissionGranted = await this.capacitorSpeechService.requestPermissions();
+    } else {
+      this.permissionGranted = await this.voiceService.requestPermission();
+    }
+
+    console.log(`[VoiceButton] Permission ${this.permissionGranted ? 'granted' : 'denied'}`);
+    return this.permissionGranted;
+  }
+
   // ── Whisper (Xenova) mode ──────────────────────────────────────────────────
 
   private async onPressWhisper(): Promise<void> {
-    if (!this.permissionGranted) {
-      console.log('[VoiceButton] Requesting microphone permission…');
-      this.permissionGranted = await this.voiceService.requestPermission();
-      console.log(`[VoiceButton] Permission ${this.permissionGranted ? 'granted' : 'denied'}`);
-      if (!this.permissionGranted) return;
-    }
     await this.voiceService.startRecording();
   }
 
   private async onReleaseWhisper(): Promise<void> {
-    const audioBase64 = await this.voiceService.stopRecording();
+    let audioBase64: string;
+    try {
+      audioBase64 = await this.voiceService.stopRecording();
+    } catch {
+      return;
+    }
     if (!audioBase64) {
       console.warn('[VoiceButton] Empty audio — skipping');
       return;
@@ -318,13 +347,6 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
     if (!available) {
       console.error('[VoiceButton] Capacitor SpeechRecognition not available on this device');
       return;
-    }
-
-    if (!this.permissionGranted) {
-      console.log('[VoiceButton] Requesting speech recognition permission…');
-      this.permissionGranted = await this.capacitorSpeechService.requestPermissions();
-      console.log(`[VoiceButton] Permission ${this.permissionGranted ? 'granted' : 'denied'}`);
-      if (!this.permissionGranted) return;
     }
 
     const lang = this.chatService.getLanguage();
