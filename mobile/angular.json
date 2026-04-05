@@ -9,14 +9,6 @@
       "root": "",
       "sourceRoot": "src",
       "prefix": "app",
-      "i18n": {
-        "sourceLocale": "en",
-        "locales": {
-          "ru": {
-            "translation": "src/locale/messages.ru.xlf"
-          }
-        }
-      },
       "architect": {
         "build": {
           "builder": "@angular-devkit/build-angular:browser",
@@ -78,14 +70,6 @@
               "extractLicenses": false,
               "sourceMap": true,
               "namedChunks": true
-            },
-            "en": {
-              "localize": ["en"],
-              "outputPath": "www"
-            },
-            "ru": {
-              "localize": ["ru"],
-              "outputPath": "www"
             },
             "ci": {
               "progress": false

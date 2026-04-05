@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { Preferences } from '@capacitor/preferences';
 import { ToastController } from '@ionic/angular';
+import { TranslocoService } from '@jsverse/transloco';
 import { ChatService, LlmSettings, SttMode } from '../../services/chat.service';
 
 /** Convert a BCP-47 tag like "ru-RU" or "en-US" to the short code "ru" / "en". */
@@ -27,6 +28,7 @@ export class SettingsPage implements OnInit {
   constructor(
     private chatService: ChatService,
     private toastController: ToastController,
+    private transloco: TranslocoService,
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -58,7 +60,10 @@ export class SettingsPage implements OnInit {
     await Preferences.set({ key: 'llmApiKey', value: this.llmApiKey });
     await Preferences.set({ key: 'llmModelName', value: this.llmModelName });
 
-    this.chatService.setLanguage(toLangCode(this.ttsLang));
+    const langCode = toLangCode(this.ttsLang);
+    this.transloco.setActiveLang(langCode);
+
+    this.chatService.setLanguage(langCode);
     this.chatService.setRobotName(this.robotName);
     this.chatService.setSttMode(this.sttMode);
 
@@ -69,8 +74,9 @@ export class SettingsPage implements OnInit {
     };
     this.chatService.setLlmSettings(llmSettings);
 
+    const message = this.transloco.translate('settings.save-success');
     const toast = await this.toastController.create({
-      message: $localize`:@@settings.save-success:Settings saved successfully`,
+      message,
       duration: 2000,
       position: 'bottom',
       color: 'success',

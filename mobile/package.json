@@ -6,11 +6,8 @@
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
-    "build": "ng build --configuration production,en",
-    "build:en": "ng build --configuration production,en",
-    "build:ru": "ng build --configuration production,ru && cp -a www/ru/. www/ && rm -rf www/ru && sed -i 's|<base href=\"/ru/\">|<base href=\"/\">|' www/index.html",
+    "build": "ng build --configuration production",
     "watch": "ng build --watch --configuration development",
-    "extract-i18n": "ng extract-i18n",
     "test": "ng test",
     "lint": "ng lint"
   },
@@ -36,6 +33,7 @@
     "@capacitor/preferences": "^8.0.1",
     "@capacitor/status-bar": "8.0.2",
     "@ionic/angular": "^8.0.0",
+    "@jsverse/transloco": "^8.2.1",
     "@xenova/transformers": "^2.17.2",
     "capacitor-voice-recorder": "^7.0.6",
     "ionicons": "^7.0.0",
