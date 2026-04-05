@@ -1,5 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { Preferences } from '@capacitor/preferences';
+import { ToastController } from '@ionic/angular';
 import { ChatService, LlmSettings, SttMode } from '../../services/chat.service';
 
 /** Convert a BCP-47 tag like "ru-RU" or "en-US" to the short code "ru" / "en". */
@@ -21,8 +22,12 @@ export class SettingsPage implements OnInit {
   llmBaseUrl = 'https://api.openai.com/v1';
   llmApiKey = '';
   llmModelName = 'gpt-4o-mini';
+  deviceId = '';
 
-  constructor(private chatService: ChatService) {}
+  constructor(
+    private chatService: ChatService,
+    private toastController: ToastController,
+  ) {}
 
   async ngOnInit(): Promise<void> {
     const camera = await Preferences.get({ key: 'cameraPosition' });
@@ -32,6 +37,7 @@ export class SettingsPage implements OnInit {
     const llmBaseUrl = await Preferences.get({ key: 'llmBaseUrl' });
     const llmApiKey = await Preferences.get({ key: 'llmApiKey' });
     const llmModelName = await Preferences.get({ key: 'llmModelName' });
+    const deviceId = await Preferences.get({ key: 'deviceId' });
 
     if (camera.value) this.cameraPosition = camera.value as 'front' | 'rear';
     if (lang.value) this.ttsLang = lang.value;
@@ -40,6 +46,7 @@ export class SettingsPage implements OnInit {
     if (llmBaseUrl.value) this.llmBaseUrl = llmBaseUrl.value;
     if (llmApiKey.value) this.llmApiKey = llmApiKey.value;
     if (llmModelName.value) this.llmModelName = llmModelName.value;
+    if (deviceId.value) this.deviceId = deviceId.value;
   }
 
   async save(): Promise<void> {
@@ -61,5 +68,13 @@ export class SettingsPage implements OnInit {
       modelName: this.llmModelName,
     };
     this.chatService.setLlmSettings(llmSettings);
+
+    const toast = await this.toastController.create({
+      message: $localize`:@@settings.save-success:Settings saved successfully`,
+      duration: 2000,
+      position: 'bottom',
+      color: 'success',
+    });
+    await toast.present();
   }
 }

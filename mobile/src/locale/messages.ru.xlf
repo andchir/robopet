@@ -9,6 +9,13 @@
           <context context-type="sourcefile">src/app/pages/settings/settings.page.html</context>
         </context-group>
       </trans-unit>
+      <trans-unit id="settings.device-id" datatype="html">
+        <source>Device ID</source>
+        <target>Идентификатор устройства</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/settings/settings.page.html</context>
+        </context-group>
+      </trans-unit>
       <trans-unit id="settings.robot-name" datatype="html">
         <source>Robot name</source>
         <target>Имя робота</target>
@@ -70,6 +77,48 @@
         <target>Нативный SpeechRecognizer (Android)</target>
         <context-group purpose="location">
           <context context-type="sourcefile">src/app/pages/settings/settings.page.html</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.llm-section" datatype="html">
+        <source>AI Assistant (OpenAI-compatible API)</source>
+        <target>ИИ-ассистент (OpenAI-совместимый API)</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/settings/settings.page.html</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.llm-base-url" datatype="html">
+        <source>Base URL</source>
+        <target>Базовый URL</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/settings/settings.page.html</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.llm-api-key" datatype="html">
+        <source>API Key</source>
+        <target>API-ключ</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/settings/settings.page.html</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.llm-model" datatype="html">
+        <source>Model</source>
+        <target>Модель</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/settings/settings.page.html</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.save" datatype="html">
+        <source>Save</source>
+        <target>Сохранить</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/settings/settings.page.html</context>
+        </context-group>
+      </trans-unit>
+      <trans-unit id="settings.save-success" datatype="html">
+        <source>Settings saved successfully</source>
+        <target>Настройки успешно сохранены</target>
+        <context-group purpose="location">
+          <context context-type="sourcefile">src/app/pages/settings/settings.page.ts</context>
         </context-group>
       </trans-unit>
     </body>

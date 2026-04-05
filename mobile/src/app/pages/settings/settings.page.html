@@ -16,8 +16,7 @@
         labelPlacement="stacked"
         type="text"
         [(ngModel)]="robotName"
-        placeholder="RoboPet"
-        (ionBlur)="save()">
+        placeholder="RoboPet">
       </ion-input>
     </ion-item>
 
@@ -26,8 +25,7 @@
         i18n-label="@@settings.language"
         label="Language"
         labelPlacement="stacked"
-        [(ngModel)]="ttsLang"
-        (ionChange)="save()">
+        [(ngModel)]="ttsLang">
         <ion-select-option value="en-US">English</ion-select-option>
         <ion-select-option value="ru-RU">Русский</ion-select-option>
       </ion-select>
@@ -38,8 +36,7 @@
         i18n-label="@@settings.camera"
         label="Camera"
         labelPlacement="stacked"
-        [(ngModel)]="cameraPosition"
-        (ionChange)="save()">
+        [(ngModel)]="cameraPosition">
         <ion-select-option value="front" i18n="@@settings.camera-front">Front</ion-select-option>
         <ion-select-option value="rear" i18n="@@settings.camera-rear">Rear</ion-select-option>
       </ion-select>
@@ -50,8 +47,7 @@
         i18n-label="@@settings.stt-mode"
         label="Voice recognition mode"
         labelPlacement="stacked"
-        [(ngModel)]="sttMode"
-        (ionChange)="save()">
+        [(ngModel)]="sttMode">
         <ion-select-option value="whisper" i18n="@@settings.stt-mode-whisper">Whisper AI (offline)</ion-select-option>
         <ion-select-option value="native" i18n="@@settings.stt-mode-native">Google Speech (Android)</ion-select-option>
         <ion-select-option value="capacitor" i18n="@@settings.stt-mode-capacitor">Native SpeechRecognizer (Android)</ion-select-option>
@@ -71,8 +67,7 @@
         labelPlacement="stacked"
         type="url"
         [(ngModel)]="llmBaseUrl"
-        placeholder="https://api.openai.com/v1"
-        (ionBlur)="save()">
+        placeholder="https://api.openai.com/v1">
       </ion-input>
     </ion-item>
 
@@ -83,8 +78,7 @@
         labelPlacement="stacked"
         type="password"
         [(ngModel)]="llmApiKey"
-        placeholder="sk-..."
-        (ionBlur)="save()">
+        placeholder="sk-...">
       </ion-input>
     </ion-item>
 
@@ -95,8 +89,26 @@
         labelPlacement="stacked"
         type="text"
         [(ngModel)]="llmModelName"
-        placeholder="gpt-4o-mini"
-        (ionBlur)="save()">
+        placeholder="gpt-4o-mini">
+      </ion-input>
+    </ion-item>
+  </ion-list>
+
+  <div class="ion-padding-top">
+    <ion-button expand="block" (click)="save()" i18n="@@settings.save">
+      Save
+    </ion-button>
+  </div>
+
+  <ion-list class="ion-margin-top">
+    <ion-item>
+      <ion-input
+        i18n-label="@@settings.device-id"
+        label="Device ID"
+        labelPlacement="stacked"
+        type="text"
+        [value]="deviceId"
+        readonly>
       </ion-input>
     </ion-item>
   </ion-list>

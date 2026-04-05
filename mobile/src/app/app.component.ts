@@ -1,4 +1,5 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
+import { Preferences } from '@capacitor/preferences';
 
 @Component({
   selector: 'app-root',
@@ -6,6 +7,13 @@ import { Component } from '@angular/core';
   styleUrls: ['app.component.scss'],
   standalone: false,
 })
-export class AppComponent {
+export class AppComponent implements OnInit {
   constructor() {}
+
+  async ngOnInit(): Promise<void> {
+    const { value } = await Preferences.get({ key: 'deviceId' });
+    if (!value) {
+      await Preferences.set({ key: 'deviceId', value: crypto.randomUUID() });
+    }
+  }
 }
