@@ -91,14 +91,8 @@ npm install
 
 ## Step 2 — Build the web assets
 
-Choose the locale you want to ship:
-
 ```bash
-# English build (default)
-npm run build:en
-
-# Russian build
-npm run build:ru
+npm run build
 ```
 
 Both commands output compiled assets to `mobile/www/`. Verify:
@@ -107,12 +101,6 @@ Both commands output compiled assets to `mobile/www/`. Verify:
 ls www/
 # Should contain: index.html, main.*.js, polyfills.*.js, styles.*.css, assets/, ...
 ```
-
-> To re-extract i18n source strings from templates after editing them, run:
-> ```bash
-> npm run extract-i18n
-> ```
-> This regenerates `src/locale/messages.xlf`. Update `src/locale/messages.ru.xlf` with the new translations before the next build.
 
 ---
 
