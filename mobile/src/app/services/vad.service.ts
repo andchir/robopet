@@ -5,9 +5,7 @@ import { Subject } from 'rxjs';
 export class VadService {
   private stream: MediaStream | null = null;
   private audioContext: AudioContext | null = null;
-  private analyser: AnalyserNode | null = null;
-  private dataArray!: Float32Array<ArrayBuffer>;
-  private intervalId: ReturnType<typeof setInterval> | null = null;
+  private scriptProcessor: ScriptProcessorNode | null = null;
 
   private isSpeechActive = false;
   private aboveThresholdSince: number | null = null;
@@ -35,6 +33,11 @@ export class VadService {
 
   constructor(private ngZone: NgZone) {}
 
+  /** Returns the active microphone MediaStream, or null if VAD is not running. */
+  getStream(): MediaStream | null {
+    return this.stream;
+  }
+
   async start(): Promise<void> {
     console.log('[VAD] start() called, stream already exists:', !!this.stream);
     if (this.stream) return;
@@ -52,29 +55,46 @@ export class VadService {
       this.audioContext = new AudioContext();
       console.log('[VAD] AudioContext created, state:', this.audioContext.state, 'sampleRate:', this.audioContext.sampleRate);
 
-      // AudioContext may start suspended — resume it explicitly
-      if (this.audioContext.state === 'suspended') {
-        console.log('[VAD] AudioContext is suspended, resuming…');
+      // AudioContext may start suspended on mobile — resume it explicitly.
+      if (this.audioContext.state !== 'running') {
+        console.log('[VAD] AudioContext not running, resuming…');
         await this.audioContext.resume();
         console.log('[VAD] AudioContext state after resume:', this.audioContext.state);
       }
 
+      this.audioContext.onstatechange = () => {
+        console.log('[VAD] AudioContext state changed to:', this.audioContext?.state);
+      };
+
       const source = this.audioContext.createMediaStreamSource(this.stream);
-      this.analyser = this.audioContext.createAnalyser();
-      this.analyser.fftSize = 512;
-      this.analyser.smoothingTimeConstant = 0;
-      this.dataArray = new Float32Array(this.analyser.fftSize) as Float32Array<ArrayBuffer>;
-      source.connect(this.analyser);
+
+      // ScriptProcessorNode works reliably on Android WebView, unlike AnalyserNode
+      // whose getFloatTimeDomainData() returns all zeros in that environment.
+      // Buffer size 2048 ≈ 42–47 ms per callback at 44.1–48 kHz.
+      // eslint-disable-next-line deprecation/deprecation
+      this.scriptProcessor = this.audioContext.createScriptProcessor(2048, 1, 1);
+
+      // Route through a silent gain node so onaudioprocess fires without
+      // feeding the microphone back through the speaker.
+      const silentGain = this.audioContext.createGain();
+      silentGain.gain.value = 0;
+      source.connect(this.scriptProcessor);
+      this.scriptProcessor.connect(silentGain);
+      silentGain.connect(this.audioContext.destination);
 
       this.isSpeechActive = false;
       this.aboveThresholdSince = null;
       this.belowThresholdSince = null;
       this.tickCount = 0;
 
-      console.log(`[VAD] Analyser ready — fftSize=${this.analyser.fftSize}, threshold=${this.THRESHOLD}, onset=${this.ONSET_MS}ms, release=${this.RELEASE_MS}ms`);
+      this.scriptProcessor.onaudioprocess = (event: AudioProcessingEvent) => {
+        this.processAudio(event.inputBuffer.getChannelData(0));
+      };
 
-      this.intervalId = setInterval(() => this.tick(), 50);
-      console.log('[VAD] Polling started (50 ms interval)');
+      console.log(
+        `[VAD] ScriptProcessor ready — bufferSize=2048, threshold=${this.THRESHOLD},` +
+        ` onset=${this.ONSET_MS}ms, release=${this.RELEASE_MS}ms`,
+      );
     } catch (err) {
       console.error('[VAD] Failed to start:', err);
     }
@@ -82,35 +102,32 @@ export class VadService {
 
   stop(): void {
     console.log('[VAD] stop() called');
-    if (this.intervalId !== null) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
+    if (this.scriptProcessor) {
+      this.scriptProcessor.onaudioprocess = null;
+      this.scriptProcessor.disconnect();
+      this.scriptProcessor = null;
     }
     this.stream?.getTracks().forEach(t => { t.stop(); console.log('[VAD] Track stopped:', t.label); });
     this.stream = null;
     this.audioContext?.close().catch(() => {});
     this.audioContext = null;
-    this.analyser = null;
     this.isSpeechActive = false;
     this.aboveThresholdSince = null;
     this.belowThresholdSince = null;
     console.log('[VAD] Stopped and cleaned up');
   }
 
-  private tick(): void {
-    if (!this.analyser) return;
-    this.analyser.getFloatTimeDomainData(this.dataArray);
-
+  private processAudio(data: Float32Array): void {
     let sumSq = 0;
-    for (let i = 0; i < this.dataArray.length; i++) {
-      sumSq += this.dataArray[i] ** 2;
+    for (let i = 0; i < data.length; i++) {
+      sumSq += data[i] ** 2;
     }
-    const rms = Math.sqrt(sumSq / this.dataArray.length);
+    const rms = Math.sqrt(sumSq / data.length);
     const now = Date.now();
     this.tickCount++;
 
-    // Log RMS every ~1 second (20 ticks × 50 ms)
-    if (this.tickCount % 20 === 0) {
+    // Log RMS roughly every ~1 second (≈ 22 callbacks/s at 2048 samples / 44.1 kHz)
+    if (this.tickCount % 22 === 0) {
       const bar = '█'.repeat(Math.min(Math.round(rms * 400), 30));
       console.log(`[VAD] RMS=${rms.toFixed(4)} ${bar}  speaking=${this.isSpeechActive}  ctx=${this.audioContext?.state}`);
     }

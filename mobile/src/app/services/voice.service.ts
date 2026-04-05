@@ -10,6 +10,9 @@ export class VoiceService {
   private readonly ttsStart$ = new Subject<void>();
   private speakGeneration = 0;
 
+  private mediaRecorder: MediaRecorder | null = null;
+  private recordChunks: Blob[] = [];
+
   get isSpeaking$(): Observable<boolean> {
     return this.speaking$.asObservable();
   }
@@ -89,5 +92,77 @@ export class VoiceService {
     console.log('[Voice] TTS stopped manually');
     await TextToSpeech.stop();
     this.speaking$.next(false);
+  }
+
+  /**
+   * Start recording from an existing MediaStream (e.g. the VAD stream) using
+   * the browser's MediaRecorder API. Avoids opening a second mic capture
+   * session on Android, where concurrent audio captures often conflict.
+   */
+  startRecordingFromStream(stream: MediaStream): void {
+    if (this.mediaRecorder) {
+      console.warn('[Voice] Stream recording already active');
+      return;
+    }
+
+    const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', ''].find(
+      t => !t || MediaRecorder.isTypeSupported(t),
+    ) ?? '';
+
+    this.recordChunks = [];
+    try {
+      this.mediaRecorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
+    } catch {
+      this.mediaRecorder = new MediaRecorder(stream);
+    }
+
+    this.mediaRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) this.recordChunks.push(e.data);
+    };
+    this.mediaRecorder.start();
+    this.recording$.next(true);
+    console.log('[Voice] Stream recording started, mimeType:', this.mediaRecorder.mimeType);
+  }
+
+  /** Stop stream recording and return the captured audio as a base64 string. */
+  stopRecordingFromStream(): Promise<string> {
+    return new Promise((resolve) => {
+      if (!this.mediaRecorder) {
+        this.recording$.next(false);
+        resolve('');
+        return;
+      }
+
+      const mr = this.mediaRecorder;
+      mr.onstop = () => {
+        const blob = new Blob(this.recordChunks, { type: mr.mimeType });
+        const reader = new FileReader();
+        reader.onload = () => {
+          const dataUrl = reader.result as string;
+          const base64 = dataUrl.split(',')[1] ?? '';
+          const kb = ((base64.length * 3) / 4 / 1024).toFixed(1);
+          console.log(`[Voice] Stream recording stopped — audio size≈${kb} KB`);
+          this.recording$.next(false);
+          resolve(base64);
+        };
+        reader.readAsDataURL(blob);
+      };
+      this.mediaRecorder.stop();
+      this.mediaRecorder = null;
+    });
+  }
+
+  /** Discard any in-progress stream recording without processing the result. */
+  cancelStreamRecording(): void {
+    if (!this.mediaRecorder) return;
+    this.mediaRecorder.ondataavailable = null;
+    this.mediaRecorder.onstop = null;
+    try { this.mediaRecorder.stop(); } catch { /* ignore */ }
+    this.mediaRecorder = null;
+    this.recordChunks = [];
+    this.recording$.next(false);
+    console.log('[Voice] Stream recording cancelled');
   }
 }

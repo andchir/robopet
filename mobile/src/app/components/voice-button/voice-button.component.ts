@@ -198,7 +198,13 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
       this.capacitorSpeechService.stopListening();
       this.capacitorListenPromise = null;
     } else {
-      this.voiceService.stopRecording().catch(() => {});
+      // In auto mode whisper uses the VAD stream via MediaRecorder; cancel it
+      // without waiting for a result. Fall back to VoiceRecorder otherwise.
+      if (this.autoMode && this.vadService.getStream()) {
+        this.voiceService.cancelStreamRecording();
+      } else {
+        this.voiceService.stopRecording().catch(() => {});
+      }
     }
   }
 
@@ -269,13 +275,26 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
   // ── Whisper (Xenova) mode ──────────────────────────────────────────────────
 
   private async onPressWhisper(): Promise<void> {
-    await this.voiceService.startRecording();
+    // In auto mode the VAD already holds an open MediaStream — reuse it so
+    // that MediaRecorder and the ScriptProcessorNode share a single capture
+    // session. Opening a second getUserMedia on Android often fails silently.
+    const vadStream = this.autoMode ? this.vadService.getStream() : null;
+    if (vadStream) {
+      this.voiceService.startRecordingFromStream(vadStream);
+    } else {
+      await this.voiceService.startRecording();
+    }
   }
 
   private async onReleaseWhisper(): Promise<void> {
     let audioBase64: string;
     try {
-      audioBase64 = await this.voiceService.stopRecording();
+      const vadStream = this.autoMode ? this.vadService.getStream() : null;
+      if (vadStream) {
+        audioBase64 = await this.voiceService.stopRecordingFromStream();
+      } else {
+        audioBase64 = await this.voiceService.stopRecording();
+      }
     } catch {
       return;
     }
