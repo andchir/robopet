@@ -106,6 +106,7 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
   // ── Auto mode ─────────────────────────────────────────────────────────────
 
   async onAutoModeChange(): Promise<void> {
+    console.log('[AutoMode] Toggle changed → autoMode =', this.autoMode);
     if (this.autoMode) {
       await this.startAutoMode();
     } else {
@@ -114,37 +115,61 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
   }
 
   private async startAutoMode(): Promise<void> {
+    console.log('[AutoMode] startAutoMode() — calling vadService.start()');
     await this.vadService.start();
+    console.log('[AutoMode] VAD started, subscribing to events');
 
     const speechStartSub = this.vadService.onSpeechStart$.subscribe(async () => {
-      if (this.isHandlingVadSpeech) return;
+      console.log(`[AutoMode] onSpeechStart$ received — isHandlingVadSpeech=${this.isHandlingVadSpeech}`);
+      if (this.isHandlingVadSpeech) {
+        console.log('[AutoMode] Already handling speech, skipping');
+        return;
+      }
 
       const recording = await firstValueFrom(this.isRecording$);
-      if (recording) return;
+      console.log(`[AutoMode] isRecording=${recording}`);
+      if (recording) {
+        console.log('[AutoMode] Already recording, skipping');
+        return;
+      }
 
       this.isHandlingVadSpeech = true;
+      console.log('[AutoMode] isHandlingVadSpeech = true');
 
       if (this.currentlySpeaking) {
+        console.log('[AutoMode] Robot is speaking — interrupting TTS…');
         await this.voiceService.stopSpeaking();
         await new Promise<void>(r => setTimeout(r, 150));
       }
+
+      console.log('[AutoMode] Calling onPress()…');
       await this.onPress();
+      console.log('[AutoMode] onPress() done');
     });
 
     const speechEndSub = this.vadService.onSpeechEnd$.subscribe(async () => {
-      if (!this.isHandlingVadSpeech) return;
+      console.log(`[AutoMode] onSpeechEnd$ received — isHandlingVadSpeech=${this.isHandlingVadSpeech}`);
+      if (!this.isHandlingVadSpeech) {
+        console.log('[AutoMode] Not handling speech, skipping release');
+        return;
+      }
+      console.log('[AutoMode] Calling onRelease()…');
       await this.onRelease();
       this.isHandlingVadSpeech = false;
+      console.log('[AutoMode] onRelease() done, isHandlingVadSpeech = false');
     });
 
     this.autoModeSubs.push(speechStartSub, speechEndSub);
+    console.log('[AutoMode] Subscriptions set up, autoMode is active');
   }
 
   private stopAutoMode(): void {
+    console.log('[AutoMode] stopAutoMode() called');
     this.vadService.stop();
     this.autoModeSubs.forEach(s => s.unsubscribe());
     this.autoModeSubs = [];
     this.isHandlingVadSpeech = false;
+    console.log('[AutoMode] Stopped, subs cleaned up');
   }
 
   // ── Button press / release ────────────────────────────────────────────────

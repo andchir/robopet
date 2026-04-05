@@ -3,7 +3,8 @@
     shape="round"
     size="large"
     class="mic-btn"
-    [color]="(isSpeaking$ | async) && !autoMode ? 'medium'
+    [color]="autoMode ? 'primary'
+           : (isSpeaking$ | async) ? 'medium'
            : (state$ | async) === 'recording' ? 'danger'
            : (state$ | async) === 'loading' || (state$ | async) === 'transcribing' ? 'warning'
            : 'primary'"
@@ -13,7 +14,8 @@
     (mousedown)="onPress()"
     (mouseup)="onRelease()">
     <ion-icon
-      [name]="(isSpeaking$ | async) && !autoMode ? 'stop-circle-outline'
+      [name]="autoMode ? 'mic-outline'
+             : (isSpeaking$ | async) ? 'stop-circle-outline'
              : (state$ | async) === 'recording' ? 'mic'
              : (state$ | async) === 'loading' ? 'cloud-download-outline'
              : (state$ | async) === 'transcribing' ? 'hourglass-outline'
