@@ -1,4 +1,7 @@
 {
+  "voice-button": {
+    "auto": "Авто"
+  },
   "settings": {
     "title": "Настройки",
     "device-id": "Идентификатор устройства",

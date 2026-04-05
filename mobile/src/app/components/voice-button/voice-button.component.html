@@ -24,7 +24,7 @@
   </ion-button>
 
   <div class="auto-toggle">
-    <span class="auto-label">Авто</span>
+    <span class="auto-label">{{ 'voice-button.auto' | transloco }}</span>
     <ion-toggle
       [(ngModel)]="autoMode"
       (ionChange)="onAutoModeChange()">
