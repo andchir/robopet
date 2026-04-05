@@ -215,6 +215,13 @@ export interface LlmSettings {
   modelName: string;
 }
 
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+const MAX_HISTORY = 20;
+
 @Injectable({ providedIn: 'root' })
 export class ChatService {
   private language = 'en';
@@ -222,6 +229,7 @@ export class ChatService {
   private sttMode: SttMode = 'native';
   private llmSettings: LlmSettings = { baseUrl: '', apiKey: '', modelName: '' };
   private readonly response$ = new Subject<RobotResponse>();
+  private history: ChatMessage[] = [];
 
   get onResponse$(): Observable<RobotResponse> {
     return this.response$.asObservable();
@@ -251,12 +259,27 @@ export class ChatService {
     this.llmSettings = settings;
   }
 
+  getHistory(): ReadonlyArray<ChatMessage> {
+    return this.history;
+  }
+
+  clearHistory(): void {
+    this.history = [];
+  }
+
+  private addToHistory(message: ChatMessage): void {
+    this.history.push(message);
+    if (this.history.length > MAX_HISTORY) {
+      this.history = this.history.slice(this.history.length - MAX_HISTORY);
+    }
+  }
+
   private isLlmConfigured(): boolean {
     const { baseUrl, apiKey, modelName } = this.llmSettings;
     return !!(baseUrl.trim() && apiKey.trim() && modelName.trim());
   }
 
-  private async callLlm(userText: string): Promise<string | null> {
+  private async callLlm(): Promise<string | null> {
     try {
       const { baseUrl, apiKey, modelName } = this.llmSettings;
       const url = `${baseUrl.replace(/\/$/, '')}/chat/completions`;
@@ -271,7 +294,7 @@ export class ChatService {
           model: modelName,
           messages: [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: userText },
+            ...this.history,
           ],
           max_tokens: 150,
         }),
@@ -291,6 +314,9 @@ export class ChatService {
   processMessage(userText: string): void {
     const intent = detectIntent(userText, this.language);
     console.log(`[Chat] intent="${intent}" lang="${this.language}"`);
+    console.log(`[Chat] history:`, this.history);
+
+    this.addToHistory({ role: 'user', content: userText });
 
     if (intent === 'default' && this.isLlmConfigured()) {
       const langResponses = RESPONSES[this.language] ?? RESPONSES['en'];
@@ -298,13 +324,17 @@ export class ChatService {
       const thinkingText = pickRandom(thinkingPhrases);
       this.response$.next({ text: thinkingText, emotion: 'thinking' });
 
-      this.callLlm(userText).then(apiText => {
+      this.callLlm().then(apiText => {
         if (apiText) {
-          console.log(`[Chat] LLM response: "${apiText}"`);
-          this.response$.next({ text: apiText.trim(), emotion: 'neutral' });
+          const trimmed = apiText.trim();
+          console.log(`[Chat] LLM response: "${trimmed}"`);
+          this.addToHistory({ role: 'assistant', content: trimmed });
+          this.response$.next({ text: trimmed, emotion: 'neutral' });
         } else {
           const errorPhrases = ERROR_RESPONSES[this.language] ?? ERROR_RESPONSES['en'];
-          this.response$.next({ text: pickRandom(errorPhrases), emotion: 'sad' });
+          const errorText = pickRandom(errorPhrases);
+          this.addToHistory({ role: 'assistant', content: errorText });
+          this.response$.next({ text: errorText, emotion: 'sad' });
         }
       });
       return;
@@ -315,6 +345,7 @@ export class ChatService {
     const text = pickRandom(phrases).replace('{name}', this.robotName);
     const emotion = INTENT_EMOTIONS[intent];
     console.log(`[Chat] text="${text}"`);
+    this.addToHistory({ role: 'assistant', content: text });
     this.response$.next({ text, emotion });
   }
 }
