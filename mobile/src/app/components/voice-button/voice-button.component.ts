@@ -1,6 +1,6 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { Preferences } from '@capacitor/preferences';
-import { Observable, Subscription, combineLatest, firstValueFrom, map } from 'rxjs';
+import { Observable, Subscription, combineLatest, map } from 'rxjs';
 import { VoiceService } from '../../services/voice.service';
 import { ChatService, SttMode } from '../../services/chat.service';
 import { WhisperService } from '../../services/whisper.service';
@@ -38,8 +38,8 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
   private autoModeSubs: Subscription[] = [];
   private speakingSub: Subscription | null = null;
   private currentlySpeaking = false;
-  /** Guard: prevents re-triggering VAD start while already handling a phrase. */
-  private isHandlingVadSpeech = false;
+  /** Guard: prevents concurrent speech-end processing in auto mode. */
+  private isProcessingAutoSpeech = false;
 
   constructor(
     private voiceService: VoiceService,
@@ -117,49 +117,51 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
   private async startAutoMode(): Promise<void> {
     console.log('[AutoMode] startAutoMode() — calling vadService.start()');
     await this.vadService.start();
-    console.log('[AutoMode] VAD started, subscribing to events');
+    console.log('[AutoMode] VAD started, pre-starting STT…');
 
-    const speechStartSub = this.vadService.onSpeechStart$.subscribe(async () => {
-      console.log(`[AutoMode] onSpeechStart$ received — isHandlingVadSpeech=${this.isHandlingVadSpeech}`);
-      if (this.isHandlingVadSpeech) {
-        console.log('[AutoMode] Already handling speech, skipping');
-        return;
+    await this.onPress();
+    console.log('[AutoMode] STT pre-started, subscribing to events');
+
+    // When robot starts speaking, discard STT so its own voice (leaked
+    // through the audio system) is never treated as user input.
+    // When robot finishes, restart STT immediately so the very first
+    // syllable of the next user utterance is captured.
+    let prevSpeaking = this.currentlySpeaking;
+    const speakingTransitionSub = this.voiceService.isSpeaking$.subscribe(async (speaking) => {
+      if (!prevSpeaking && speaking) {
+        console.log('[AutoMode] Robot started speaking — discarding STT');
+        this.discardActiveStt();
+      } else if (prevSpeaking && !speaking && this.autoMode) {
+        console.log('[AutoMode] Robot stopped speaking — restarting STT');
+        await this.onPress();
       }
-
-      const recording = await firstValueFrom(this.isRecording$);
-      console.log(`[AutoMode] isRecording=${recording}`);
-      if (recording) {
-        console.log('[AutoMode] Already recording, skipping');
-        return;
-      }
-
-      this.isHandlingVadSpeech = true;
-      console.log('[AutoMode] isHandlingVadSpeech = true');
-
-      if (this.currentlySpeaking) {
-        console.log('[AutoMode] Robot is speaking — interrupting TTS…');
-        await this.voiceService.stopSpeaking();
-        await new Promise<void>(r => setTimeout(r, 150));
-      }
-
-      console.log('[AutoMode] Calling onPress()…');
-      await this.onPress();
-      console.log('[AutoMode] onPress() done');
+      prevSpeaking = speaking;
     });
 
     const speechEndSub = this.vadService.onSpeechEnd$.subscribe(async () => {
-      console.log(`[AutoMode] onSpeechEnd$ received — isHandlingVadSpeech=${this.isHandlingVadSpeech}`);
-      if (!this.isHandlingVadSpeech) {
-        console.log('[AutoMode] Not handling speech, skipping release');
+      console.log(`[AutoMode] onSpeechEnd$, currentlySpeaking=${this.currentlySpeaking}`);
+      if (this.currentlySpeaking) {
+        console.log('[AutoMode] Robot is speaking — ignoring');
         return;
       }
-      console.log('[AutoMode] Calling onRelease()…');
-      await this.onRelease();
-      this.isHandlingVadSpeech = false;
-      console.log('[AutoMode] onRelease() done, isHandlingVadSpeech = false');
+      if (this.isProcessingAutoSpeech) {
+        console.log('[AutoMode] Already processing — skipping');
+        return;
+      }
+      this.isProcessingAutoSpeech = true;
+      try {
+        console.log('[AutoMode] Stopping STT and processing…');
+        await this.onRelease();
+        if (this.autoMode) {
+          console.log('[AutoMode] Restarting STT for next utterance…');
+          await this.onPress();
+        }
+      } finally {
+        this.isProcessingAutoSpeech = false;
+      }
     });
 
-    this.autoModeSubs.push(speechStartSub, speechEndSub);
+    this.autoModeSubs.push(speakingTransitionSub, speechEndSub);
     console.log('[AutoMode] Subscriptions set up, autoMode is active');
   }
 
@@ -168,8 +170,23 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
     this.vadService.stop();
     this.autoModeSubs.forEach(s => s.unsubscribe());
     this.autoModeSubs = [];
-    this.isHandlingVadSpeech = false;
+    this.isProcessingAutoSpeech = false;
+    this.discardActiveStt();
     console.log('[AutoMode] Stopped, subs cleaned up');
+  }
+
+  /** Stop any running STT session without processing its results. */
+  private discardActiveStt(): void {
+    const mode = this.chatService.getSttMode();
+    if (mode === 'native') {
+      this.nativeSpeechService.stopListening();
+      this.nativeListenPromise = null;
+    } else if (mode === 'capacitor') {
+      this.capacitorSpeechService.stopListening();
+      this.capacitorListenPromise = null;
+    } else {
+      this.voiceService.stopRecording().catch(() => {});
+    }
   }
 
   // ── Button press / release ────────────────────────────────────────────────
@@ -177,6 +194,7 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
   async onPress(): Promise<void> {
     // When not in auto mode, pressing while robot speaks interrupts it.
     if (this.currentlySpeaking && !this.autoMode) {
+      this.chatService.notifyInterrupted();
       await this.voiceService.stopSpeaking();
       await new Promise<void>(r => setTimeout(r, 150));
     }

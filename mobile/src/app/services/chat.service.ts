@@ -231,6 +231,13 @@ export class ChatService {
   private readonly response$ = new Subject<RobotResponse>();
   private history: ChatMessage[] = [];
 
+  /** True while an LLM call is in flight or the LLM response is the last one emitted. */
+  private isInLlmCycle = false;
+  /** Skip the "thinking" filler phrase on the next LLM call (set when interrupted mid-LLM). */
+  private skipThinkingPhrase = false;
+  /** AbortController for the current in-flight LLM fetch, to cancel it on interruption. */
+  private llmAbortController: AbortController | null = null;
+
   get onResponse$(): Observable<RobotResponse> {
     return this.response$.asObservable();
   }
@@ -267,6 +274,20 @@ export class ChatService {
     this.history = [];
   }
 
+  /**
+   * Call this when the robot is interrupted while speaking an LLM response.
+   * The next LLM call will skip the "thinking" filler phrase and reply directly.
+   */
+  notifyInterrupted(): void {
+    if (this.isInLlmCycle) {
+      console.log('[Chat] Interrupted during LLM cycle — will skip thinking phrase');
+      this.skipThinkingPhrase = true;
+      // Cancel the in-flight LLM request so its stale response is discarded.
+      this.llmAbortController?.abort();
+      this.llmAbortController = null;
+    }
+  }
+
   private addToHistory(message: ChatMessage): void {
     this.history.push(message);
     if (this.history.length > MAX_HISTORY) {
@@ -279,12 +300,13 @@ export class ChatService {
     return !!(baseUrl.trim() && apiKey.trim() && modelName.trim());
   }
 
-  private async callLlm(): Promise<string | null> {
+  private async callLlm(signal: AbortSignal): Promise<string | null> {
     try {
       const { baseUrl, apiKey, modelName } = this.llmSettings;
       const url = `${baseUrl.replace(/\/$/, '')}/chat/completions`;
       const systemPrompt = SYSTEM_PROMPT.replace('{name}', this.robotName);
       const response = await fetch(url, {
+        signal,
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -306,6 +328,10 @@ export class ChatService {
       const data = await response.json();
       return (data.choices?.[0]?.message?.content as string) ?? null;
     } catch (error) {
+      if ((error as Error).name === 'AbortError') {
+        console.log('[Chat] LLM request aborted');
+        return null;
+      }
       console.error('[Chat] LLM call failed:', error);
       return null;
     }
@@ -320,11 +346,24 @@ export class ChatService {
 
     if (intent === 'default' && this.isLlmConfigured()) {
       const langResponses = RESPONSES[this.language] ?? RESPONSES['en'];
-      const thinkingPhrases = langResponses['thinking'];
-      const thinkingText = pickRandom(thinkingPhrases);
-      this.response$.next({ text: thinkingText, emotion: 'thinking' });
 
-      this.callLlm().then(apiText => {
+      if (this.skipThinkingPhrase) {
+        this.skipThinkingPhrase = false;
+        console.log('[Chat] Skipping thinking phrase (interrupted during LLM cycle)');
+      } else {
+        const thinkingPhrases = langResponses['thinking'];
+        const thinkingText = pickRandom(thinkingPhrases);
+        this.response$.next({ text: thinkingText, emotion: 'thinking' });
+      }
+
+      this.isInLlmCycle = true;
+      const controller = new AbortController();
+      this.llmAbortController = controller;
+
+      this.callLlm(controller.signal).then(apiText => {
+        if (controller.signal.aborted) return;
+        this.isInLlmCycle = false;
+        this.llmAbortController = null;
         if (apiText) {
           const trimmed = apiText.trim();
           console.log(`[Chat] LLM response: "${trimmed}"`);
@@ -340,6 +379,7 @@ export class ChatService {
       return;
     }
 
+    this.isInLlmCycle = false;
     const langResponses = RESPONSES[this.language] ?? RESPONSES['en'];
     const phrases = langResponses[intent] ?? langResponses['default'];
     const text = pickRandom(phrases).replace('{name}', this.robotName);
