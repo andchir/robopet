@@ -1,0 +1,18 @@
+.qr-container {
+  display: flex;
+  justify-content: center;
+  margin: 32px 0 16px;
+
+  canvas {
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  }
+}
+
+.device-id-label {
+  font-size: 11px;
+  color: var(--ion-color-medium);
+  word-break: break-all;
+  padding: 0 16px;
+  margin-top: 8px;
+}

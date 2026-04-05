@@ -104,4 +104,17 @@
       </ion-input>
     </ion-item>
   </ion-list>
+
+  <div class="device-id-actions ion-padding-top">
+    <ion-button expand="block" fill="outline" (click)="showQrCode()">
+      <ion-icon name="qr-code-outline" slot="start"></ion-icon>
+      {{ 'settings.show-qr' | transloco }}
+    </ion-button>
+    <ion-button expand="block" fill="outline" color="secondary" class="ion-margin-top" (click)="identify()">
+      <ion-icon name="scan-outline" slot="start"></ion-icon>
+      {{ 'settings.identify' | transloco }}
+    </ion-button>
+  </div>
+
+  <p class="device-id-hint">{{ 'settings.device-id-hint' | transloco }}</p>
 </ion-content>

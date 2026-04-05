@@ -1,0 +1,28 @@
+{
+  "settings": {
+    "title": "Settings",
+    "device-id": "Device ID",
+    "robot-name": "Robot name",
+    "language": "Language",
+    "camera": "Camera",
+    "camera-front": "Front",
+    "camera-rear": "Rear",
+    "stt-mode": "Voice recognition mode",
+    "stt-mode-whisper": "Whisper AI (offline)",
+    "stt-mode-native": "Google Speech (Android)",
+    "stt-mode-capacitor": "Native SpeechRecognizer (Android)",
+    "llm-section": "AI Assistant (OpenAI-compatible API)",
+    "llm-base-url": "Base URL",
+    "llm-api-key": "API Key",
+    "llm-model": "Model",
+    "save": "Save",
+    "save-success": "Settings saved successfully",
+    "show-qr": "Show QR Code",
+    "identify": "Identify",
+    "qr-display-title": "Device QR Code",
+    "qr-scanner-title": "Scan QR Code",
+    "qr-scanner-hint": "Point the camera at the QR code",
+    "qr-scan-success": "Device ID saved successfully",
+    "device-id-hint": "Each device has a unique ID used to link devices together. Use \"Show QR Code\" so another device can scan it, or use \"Identify\" to scan another device's QR code. This allows multiple devices to sync and will be used for server authentication."
+  }
+}

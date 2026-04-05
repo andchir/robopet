@@ -1,8 +1,10 @@
 import { Component, OnInit } from '@angular/core';
 import { Preferences } from '@capacitor/preferences';
-import { ToastController } from '@ionic/angular';
+import { ModalController, ToastController } from '@ionic/angular';
 import { TranslocoService } from '@jsverse/transloco';
 import { ChatService, LlmSettings, SttMode } from '../../services/chat.service';
+import { QrDisplayModalComponent } from './qr-display-modal.component';
+import { QrScannerModalComponent } from './qr-scanner-modal.component';
 
 /** Convert a BCP-47 tag like "ru-RU" or "en-US" to the short code "ru" / "en". */
 function toLangCode(bcp47: string): string {
@@ -29,6 +31,7 @@ export class SettingsPage implements OnInit {
     private chatService: ChatService,
     private toastController: ToastController,
     private transloco: TranslocoService,
+    private modalController: ModalController,
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -82,5 +85,34 @@ export class SettingsPage implements OnInit {
       color: 'success',
     });
     await toast.present();
+  }
+
+  async showQrCode(): Promise<void> {
+    const modal = await this.modalController.create({
+      component: QrDisplayModalComponent,
+      componentProps: { deviceId: this.deviceId },
+    });
+    await modal.present();
+  }
+
+  async identify(): Promise<void> {
+    const modal = await this.modalController.create({
+      component: QrScannerModalComponent,
+    });
+    await modal.present();
+
+    const { data } = await modal.onDidDismiss<string>();
+    if (data) {
+      this.deviceId = data;
+      await Preferences.set({ key: 'deviceId', value: data });
+      const message = this.transloco.translate('settings.qr-scan-success');
+      const toast = await this.toastController.create({
+        message,
+        duration: 2000,
+        position: 'bottom',
+        color: 'success',
+      });
+      await toast.present();
+    }
   }
 }

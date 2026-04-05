@@ -1,0 +1,31 @@
+<ion-header>
+  <ion-toolbar>
+    <ion-title>{{ 'settings.qr-scanner-title' | transloco }}</ion-title>
+    <ion-buttons slot="end">
+      <ion-button (click)="dismiss()">
+        <ion-icon slot="icon-only" name="close-outline"></ion-icon>
+      </ion-button>
+    </ion-buttons>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content>
+  <div class="scanner-wrapper">
+    <video #video playsinline muted class="scanner-video"></video>
+    <canvas #canvas class="scanner-canvas-hidden"></canvas>
+
+    @if (scanning) {
+      <div class="scanner-overlay">
+        <div class="scan-frame"></div>
+        <p class="scan-hint">{{ 'settings.qr-scanner-hint' | transloco }}</p>
+      </div>
+    }
+
+    @if (error) {
+      <div class="scanner-error">
+        <ion-icon name="camera-off-outline" size="large"></ion-icon>
+        <p>{{ error }}</p>
+      </div>
+    }
+  </div>
+</ion-content>
