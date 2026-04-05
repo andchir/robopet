@@ -124,17 +124,20 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
     await this.onPress();
     console.log('[AutoMode] STT pre-started, subscribing to events');
 
-    // When robot starts speaking, discard STT so its own voice (leaked
-    // through the audio system) is never treated as user input.
-    // When robot finishes, restart STT immediately so the very first
-    // syllable of the next user utterance is captured.
+    // Discard STT on every new TTS utterance, even if isSpeaking$ was already
+    // true (e.g. thinking phrase immediately followed by LLM response).
+    const ttsStartSub = this.voiceService.onTtsStart$.subscribe(() => {
+      console.log('[AutoMode] TTS started — discarding STT');
+      this.discardActiveStt();
+    });
+
+    // When robot finishes speaking, restart STT so the very first syllable of
+    // the next user utterance is captured.
     let prevSpeaking = this.currentlySpeaking;
     const speakingTransitionSub = this.voiceService.isSpeaking$.subscribe(async (speaking) => {
-      if (!prevSpeaking && speaking) {
-        console.log('[AutoMode] Robot started speaking — discarding STT');
-        this.discardActiveStt();
-      } else if (prevSpeaking && !speaking && this.autoMode) {
+      if (prevSpeaking && !speaking && this.autoMode) {
         console.log('[AutoMode] Robot stopped speaking — restarting STT');
+        this.discardActiveStt();
         await this.onPress();
       }
       prevSpeaking = speaking;
@@ -163,7 +166,7 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
       }
     });
 
-    this.autoModeSubs.push(speakingTransitionSub, speechEndSub);
+    this.autoModeSubs.push(ttsStartSub, speakingTransitionSub, speechEndSub);
     console.log('[AutoMode] Subscriptions set up, autoMode is active');
   }
 

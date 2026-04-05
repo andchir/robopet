@@ -344,7 +344,9 @@ export class ChatService {
 
     this.addToHistory({ role: 'user', content: userText });
 
-    if (intent === 'default' && this.isLlmConfigured()) {
+    const wordsCount = userText.split(' ').length;
+
+    if ((intent === 'default' || wordsCount > 3) && this.isLlmConfigured()) {
       const langResponses = RESPONSES[this.language] ?? RESPONSES['en'];
 
       if (this.skipThinkingPhrase) {

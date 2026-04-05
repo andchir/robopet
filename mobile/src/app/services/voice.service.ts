@@ -1,16 +1,22 @@
 import { Injectable } from '@angular/core';
 import { VoiceRecorder } from 'capacitor-voice-recorder';
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
-import { BehaviorSubject, Observable } from 'rxjs';
+import { BehaviorSubject, Observable, Subject } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
 export class VoiceService {
   private readonly speaking$ = new BehaviorSubject<boolean>(false);
   private readonly recording$ = new BehaviorSubject<boolean>(false);
+  private readonly ttsStart$ = new Subject<void>();
   private speakGeneration = 0;
 
   get isSpeaking$(): Observable<boolean> {
     return this.speaking$.asObservable();
+  }
+
+  /** Fires every time speak() is called, even if already speaking. */
+  get onTtsStart$(): Observable<void> {
+    return this.ttsStart$.asObservable();
   }
 
   get isRecording$(): Observable<boolean> {
@@ -40,6 +46,11 @@ export class VoiceService {
   async speak(text: string, lang = 'ru-RU'): Promise<void> {
     const generation = ++this.speakGeneration;
     console.log(`[Voice] TTS start  gen=${generation}  lang=${lang}  text="${text.slice(0, 80)}${text.length > 80 ? '…' : ''}"`);
+
+    // Notify listeners that a new TTS utterance is starting (fires before
+    // isSpeaking$ changes, so auto-mode can discard any orphaned STT session
+    // even when isSpeaking$ was already true from the previous utterance).
+    this.ttsStart$.next();
 
     // Stop any currently playing TTS before starting a new one
     try { await TextToSpeech.stop(); } catch { /* ignore */ }
