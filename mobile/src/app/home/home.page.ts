@@ -50,7 +50,7 @@ export class HomePage implements OnInit, OnDestroy {
     this.subs.push(
       this.chatService.onResponse$.subscribe((resp: RobotResponse) => {
         this.emotionService.setEmotion(resp.emotion);
-        this.voiceService.speak(resp.text, this.ttsLang);
+        this.voiceService.speak(resp.text, this.ttsLang).catch(() => {});
       }),
     );
   }

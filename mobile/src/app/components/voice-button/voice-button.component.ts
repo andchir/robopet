@@ -40,6 +40,8 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
   private currentlySpeaking = false;
   /** Guard: prevents concurrent speech-end processing in auto mode. */
   private isProcessingAutoSpeech = false;
+  /** Tracks the running onPress() so onRelease() can wait for it to finish. */
+  private pressPromise: Promise<void> = Promise.resolve();
 
   constructor(
     private voiceService: VoiceService,
@@ -192,6 +194,28 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
   // ── Button press / release ────────────────────────────────────────────────
 
   async onPress(): Promise<void> {
+    const p = this.doPress();
+    this.pressPromise = p;
+    await p;
+  }
+
+  async onRelease(): Promise<void> {
+    // Wait for onPress() to finish — prevents the race where a quick tap
+    // (touchstart+touchend in rapid succession) causes onRelease() to run
+    // before STT has been started, leaving it in a stuck state.
+    await this.pressPromise.catch(() => {});
+
+    const mode = this.chatService.getSttMode();
+    if (mode === 'native') {
+      await this.onReleaseNative();
+    } else if (mode === 'capacitor') {
+      await this.onReleaseCapacitor();
+    } else {
+      await this.onReleaseWhisper();
+    }
+  }
+
+  private async doPress(): Promise<void> {
     // When not in auto mode, pressing while robot speaks interrupts it.
     if (this.currentlySpeaking && !this.autoMode) {
       this.chatService.notifyInterrupted();
@@ -206,17 +230,6 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
       await this.onPressCapacitor();
     } else {
       await this.onPressWhisper();
-    }
-  }
-
-  async onRelease(): Promise<void> {
-    const mode = this.chatService.getSttMode();
-    if (mode === 'native') {
-      await this.onReleaseNative();
-    } else if (mode === 'capacitor') {
-      await this.onReleaseCapacitor();
-    } else {
-      await this.onReleaseWhisper();
     }
   }
 

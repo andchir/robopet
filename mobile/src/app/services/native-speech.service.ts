@@ -12,6 +12,14 @@ export class NativeSpeechService {
   private resultResolve: ((text: string) => void) | null = null;
   private resultReject: ((err: Error) => void) | null = null;
 
+  /**
+   * Resolves when the current recognition session fires `onend`.
+   * Awaited at the top of {@link startListening} so that a new session
+   * never starts while the browser is still tearing down the old one
+   * (which would cause an immediate "aborted" error).
+   */
+  private sessionEndPromise: Promise<void> = Promise.resolve();
+
   private readonly listening$ = new BehaviorSubject<boolean>(false);
   private readonly processing$ = new BehaviorSubject<boolean>(false);
 
@@ -41,7 +49,9 @@ export class NativeSpeechService {
    *
    * @param language BCP-47 tag, e.g. "en-US" or "ru-RU".
    */
-  startListening(language: string): Promise<string> {
+  async startListening(language: string): Promise<string> {
+    await this.sessionEndPromise;
+
     return new Promise<string>((resolve, reject) => {
       const w = window as Window & typeof globalThis & { SpeechRecognition?: SpeechRecognitionCtor; webkitSpeechRecognition?: SpeechRecognitionCtor };
       const SR: SpeechRecognitionCtor | undefined = w.SpeechRecognition ?? w.webkitSpeechRecognition;
@@ -61,6 +71,9 @@ export class NativeSpeechService {
       this.recognition = rec;
 
       const transcripts: string[] = [];
+
+      let resolveSessionEnd!: () => void;
+      this.sessionEndPromise = new Promise<void>(r => { resolveSessionEnd = r; });
 
       rec.onstart = () => {
         console.log('[NativeSpeech] Recognition started, lang=', language);
@@ -86,11 +99,9 @@ export class NativeSpeechService {
         this.recognition = null;
 
         if (event.error === 'no-speech' || event.error === 'aborted') {
-          if (this.resultResolve) {
-            this.resultResolve(transcripts.join(' ').trim());
-            this.resultResolve = null;
-            this.resultReject = null;
-          }
+          // Don't resolve the main promise here — let onend handle it.
+          // Resolving here would let the caller start a new session before
+          // the browser fully tears down this one (onend hasn't fired yet).
         } else {
           if (this.resultReject) {
             this.resultReject(new Error(`Ошибка распознавания: ${event.error}`));
@@ -112,6 +123,8 @@ export class NativeSpeechService {
           this.resultResolve = null;
           this.resultReject = null;
         }
+
+        resolveSessionEnd();
       };
 
       try {
@@ -119,6 +132,7 @@ export class NativeSpeechService {
       } catch (err) {
         this.resultResolve = null;
         this.resultReject = null;
+        resolveSessionEnd();
         reject(err);
       }
     });

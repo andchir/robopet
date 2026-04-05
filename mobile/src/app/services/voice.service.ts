@@ -60,6 +60,11 @@ export class VoiceService {
     try {
       await TextToSpeech.speak({ text, lang, rate: 1.0 });
       console.log(`[Voice] TTS finished  gen=${generation}`);
+    } catch (err: unknown) {
+      const errObj = err as { error?: string };
+      if (errObj?.error !== 'interrupted') {
+        console.error('[Voice] TTS error:', err);
+      }
     } finally {
       clearTimeout(safetyTimer);
       // Only mark as done if we are still the latest speak() call
