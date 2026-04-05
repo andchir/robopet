@@ -1,5 +1,7 @@
 # RoboPet
 
+![RoboPet](https://github.com/andchir/robopet/blob/main/images/screenshot1.png?raw=true)
+
 A mobile robot-pet companion app. The phone displays an animated robot face that sees through the camera, listens via microphone, and talks back using text-to-speech — all powered by an AI backend running on your local network.
 
 **Frontend** — Ionic 8 + Angular 19 + Capacitor 6 (Android / iOS / browser).
