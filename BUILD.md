@@ -231,10 +231,8 @@ npx cap open android
 # 1. Install dependencies (once)
 cd mobile && npm install
 
-# 2. Build web assets — choose locale
-npm run build:en   # English
-# or:
-npm run build:ru   # Russian
+# 2. Build web assets
+npm run build
 
 # 3. Sync Capacitor (MUST run after every web build)
 npx cap sync android
