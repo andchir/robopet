@@ -1,18 +1,20 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { Preferences } from '@capacitor/preferences';
-import { Observable, combineLatest, map } from 'rxjs';
+import { Observable, Subscription, combineLatest, firstValueFrom, map } from 'rxjs';
 import { VoiceService } from '../../services/voice.service';
 import { ChatService, SttMode } from '../../services/chat.service';
 import { WhisperService } from '../../services/whisper.service';
 import { NativeSpeechService } from '../../services/native-speech.service';
 import { CapacitorSpeechService } from '../../services/capacitor-speech.service';
+import { VadService } from '../../services/vad.service';
 
 @Component({
   selector: 'app-voice-button',
   templateUrl: './voice-button.component.html',
+  styleUrls: ['./voice-button.component.scss'],
   standalone: false,
 })
-export class VoiceButtonComponent implements OnInit {
+export class VoiceButtonComponent implements OnInit, OnDestroy {
   isRecording$: Observable<boolean>;
   isLoading$: Observable<boolean>;
   isTranscribing$: Observable<boolean>;
@@ -23,9 +25,21 @@ export class VoiceButtonComponent implements OnInit {
   /** Visual state label for template logic. */
   state$: Observable<'idle' | 'recording' | 'loading' | 'transcribing'>;
 
+  /** Exposed so the template can react to robot speaking state. */
+  readonly isSpeaking$ = this.voiceService.isSpeaking$;
+
+  /** Whether auto (VAD-triggered) mode is active. */
+  autoMode = false;
+
   private permissionGranted = false;
   private nativeListenPromise: Promise<string> | null = null;
   private capacitorListenPromise: Promise<string> | null = null;
+
+  private autoModeSubs: Subscription[] = [];
+  private speakingSub: Subscription | null = null;
+  private currentlySpeaking = false;
+  /** Guard: prevents re-triggering VAD start while already handling a phrase. */
+  private isHandlingVadSpeech = false;
 
   constructor(
     private voiceService: VoiceService,
@@ -33,6 +47,7 @@ export class VoiceButtonComponent implements OnInit {
     private whisperService: WhisperService,
     private nativeSpeechService: NativeSpeechService,
     private capacitorSpeechService: CapacitorSpeechService,
+    private vadService: VadService,
   ) {
     this.isRecording$ = combineLatest([
       this.voiceService.isRecording$,
@@ -48,12 +63,12 @@ export class VoiceButtonComponent implements OnInit {
       this.capacitorSpeechService.isProcessing$,
     ]).pipe(map(([wt, np, cp]) => wt || np || cp));
 
+    // isSpeaking$ intentionally excluded: pressing while robot speaks now interrupts it.
     this.isDisabled$ = combineLatest([
       this.whisperService.isBusy$,
       this.nativeSpeechService.isProcessing$,
       this.capacitorSpeechService.isProcessing$,
-      this.voiceService.isSpeaking$,
-    ]).pipe(map(([wb, np, cp, speaking]) => wb || np || cp || speaking));
+    ]).pipe(map(([wb, np, cp]) => wb || np || cp));
 
     this.state$ = combineLatest([
       this.isRecording$,
@@ -77,11 +92,71 @@ export class VoiceButtonComponent implements OnInit {
     if (mode === 'whisper') {
       this.whisperService.preload();
     }
+
+    this.speakingSub = this.voiceService.isSpeaking$.subscribe(s => {
+      this.currentlySpeaking = s;
+    });
   }
 
-  async onPress(): Promise<void> {
-    const mode = this.chatService.getSttMode();
+  ngOnDestroy(): void {
+    this.speakingSub?.unsubscribe();
+    this.stopAutoMode();
+  }
 
+  // ── Auto mode ─────────────────────────────────────────────────────────────
+
+  async onAutoModeChange(): Promise<void> {
+    if (this.autoMode) {
+      await this.startAutoMode();
+    } else {
+      this.stopAutoMode();
+    }
+  }
+
+  private async startAutoMode(): Promise<void> {
+    await this.vadService.start();
+
+    const speechStartSub = this.vadService.onSpeechStart$.subscribe(async () => {
+      if (this.isHandlingVadSpeech) return;
+
+      const recording = await firstValueFrom(this.isRecording$);
+      if (recording) return;
+
+      this.isHandlingVadSpeech = true;
+
+      if (this.currentlySpeaking) {
+        await this.voiceService.stopSpeaking();
+        await new Promise<void>(r => setTimeout(r, 150));
+      }
+      await this.onPress();
+    });
+
+    const speechEndSub = this.vadService.onSpeechEnd$.subscribe(async () => {
+      if (!this.isHandlingVadSpeech) return;
+      await this.onRelease();
+      this.isHandlingVadSpeech = false;
+    });
+
+    this.autoModeSubs.push(speechStartSub, speechEndSub);
+  }
+
+  private stopAutoMode(): void {
+    this.vadService.stop();
+    this.autoModeSubs.forEach(s => s.unsubscribe());
+    this.autoModeSubs = [];
+    this.isHandlingVadSpeech = false;
+  }
+
+  // ── Button press / release ────────────────────────────────────────────────
+
+  async onPress(): Promise<void> {
+    // When not in auto mode, pressing while robot speaks interrupts it.
+    if (this.currentlySpeaking && !this.autoMode) {
+      await this.voiceService.stopSpeaking();
+      await new Promise<void>(r => setTimeout(r, 150));
+    }
+
+    const mode = this.chatService.getSttMode();
     if (mode === 'native') {
       await this.onPressNative();
     } else if (mode === 'capacitor') {
@@ -93,7 +168,6 @@ export class VoiceButtonComponent implements OnInit {
 
   async onRelease(): Promise<void> {
     const mode = this.chatService.getSttMode();
-
     if (mode === 'native') {
       await this.onReleaseNative();
     } else if (mode === 'capacitor') {

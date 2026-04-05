@@ -1,20 +1,31 @@
-<ion-button
-  expand="block"
-  shape="round"
-  size="large"
-  [color]="(state$ | async) === 'recording' ? 'danger'
-         : (state$ | async) === 'loading' || (state$ | async) === 'transcribing' ? 'warning'
-         : 'primary'"
-  [disabled]="(isDisabled$ | async) && !(isRecording$ | async)"
-  (touchstart)="onPress()"
-  (touchend)="onRelease()"
-  (mousedown)="onPress()"
-  (mouseup)="onRelease()">
-  <ion-icon
-    slot="icon-only"
-    [name]="(state$ | async) === 'recording' ? 'mic'
-           : (state$ | async) === 'loading' ? 'cloud-download-outline'
-           : (state$ | async) === 'transcribing' ? 'hourglass-outline'
-           : 'mic-outline'">
-  </ion-icon>
-</ion-button>
+<div class="voice-controls">
+  <ion-button
+    shape="round"
+    size="large"
+    class="mic-btn"
+    [color]="(isSpeaking$ | async) && !autoMode ? 'medium'
+           : (state$ | async) === 'recording' ? 'danger'
+           : (state$ | async) === 'loading' || (state$ | async) === 'transcribing' ? 'warning'
+           : 'primary'"
+    [disabled]="((isDisabled$ | async) && !(isRecording$ | async)) || autoMode"
+    (touchstart)="onPress()"
+    (touchend)="onRelease()"
+    (mousedown)="onPress()"
+    (mouseup)="onRelease()">
+    <ion-icon
+      [name]="(isSpeaking$ | async) && !autoMode ? 'stop-circle-outline'
+             : (state$ | async) === 'recording' ? 'mic'
+             : (state$ | async) === 'loading' ? 'cloud-download-outline'
+             : (state$ | async) === 'transcribing' ? 'hourglass-outline'
+             : 'mic-outline'">
+    </ion-icon>
+  </ion-button>
+
+  <div class="auto-toggle">
+    <span class="auto-label">Авто</span>
+    <ion-toggle
+      [(ngModel)]="autoMode"
+      (ionChange)="onAutoModeChange()">
+    </ion-toggle>
+  </div>
+</div>

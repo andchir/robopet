@@ -1,0 +1,25 @@
+.voice-controls {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.mic-btn {
+  width: 144px;
+  --border-radius: 9999px;
+}
+
+.auto-toggle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+
+  .auto-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--ion-color-medium);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+}
