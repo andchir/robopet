@@ -19,6 +19,8 @@ type SpeechRecognitionCtor = new () => any;
 
 const FLIP_DURATION_MS = 750;
 const FLIP_EASING = 'cubic-bezier(0.4, 0, 0.2, 1)';
+/** Tiny "drop" gesture played on the spotlight before it morphs into the transcript. */
+const DROP_DIP_MS = 180;
 /** After this much silence the spotlight word auto-drops into the transcript. */
 const IDLE_COMMIT_MS = 1200;
 
@@ -52,6 +54,8 @@ export class SpeechTestPage implements OnInit, OnDestroy {
   private spokenCount = 0;
   private permissionGranted = false;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Serializes word arrivals + idle commits so dip / FLIP animations don't race. */
+  private commitChain: Promise<void> = Promise.resolve();
 
   // Native (Web Speech API) state
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -117,15 +121,28 @@ export class SpeechTestPage implements OnInit, OnDestroy {
   private addWord(text: string): void {
     const trimmed = text.trim();
     if (!trimmed) return;
+    this.enqueue(() => this.processIncomingWord(trimmed));
+  }
 
+  /**
+   * Serialize all stage mutations behind a single Promise chain so dip and
+   * FLIP animations don't race when words arrive rapidly.
+   */
+  private enqueue(task: () => Promise<void>): void {
+    this.commitChain = this.commitChain
+      .then(task)
+      .catch(err => console.error('[SpeechTest] queue task failed', err));
+  }
+
+  private async processIncomingWord(text: string): Promise<void> {
     // Drop the existing spotlight (if any) into the transcript first, then
     // present the new word as the new spotlight.
-    this.commitCurrentToTranscript();
+    await this.commitCurrentToTranscript();
 
     this.zone.run(() => {
       this.currentWord = {
         id: ++this.nextWordId,
-        text: trimmed,
+        text,
         rotation: this.randomBetween(-5, 5),
         hue: this.randomBetween(200, 340),
       };
@@ -136,16 +153,46 @@ export class SpeechTestPage implements OnInit, OnDestroy {
   }
 
   /**
-   * Push the current spotlight word into the transcript and FLIP-animate it
-   * into its new inline position. Safe to call even when no spotlight exists.
+   * Play a small "drop" gesture on the spotlight and then move the word into
+   * the transcript with a FLIP morph. Safe to call when no spotlight exists.
    */
-  private commitCurrentToTranscript(): void {
+  private async commitCurrentToTranscript(): Promise<void> {
     this.clearIdleTimer();
 
     const previous = this.currentWord;
     if (!previous) return;
 
-    // Snapshot spotlight position BEFORE re-rendering.
+    // Phase 1 — small downward dip on the spotlight to telegraph the drop.
+    const spotlightEl = document.querySelector('.spotlight') as HTMLElement | null;
+    if (spotlightEl) {
+      try {
+        await spotlightEl.animate(
+          [
+            { transform: 'translate3d(0, 0, 0) scale(1)', filter: 'brightness(1)' },
+            {
+              transform: 'translate3d(0, -3px, 0) scale(1.02)',
+              filter: 'brightness(1.08)',
+              offset: 0.3,
+            },
+            {
+              transform: 'translate3d(0, 14px, 0) scale(0.96)',
+              filter: 'brightness(0.95)',
+            },
+          ],
+          {
+            duration: DROP_DIP_MS,
+            easing: 'cubic-bezier(0.55, 0.06, 0.68, 0.19)',
+            fill: 'forwards',
+          },
+        ).finished;
+      } catch {
+        // Animation can be cancelled if the element is removed mid-animation.
+      }
+    }
+
+    // Phase 2 — FLIP morph from the dipped position into the inline transcript.
+    if (this.currentWord !== previous) return;
+
     const fromRect = (document.querySelector('.spotlight') as HTMLElement | null)
       ?.getBoundingClientRect() ?? null;
 
@@ -166,7 +213,7 @@ export class SpeechTestPage implements OnInit, OnDestroy {
     this.clearIdleTimer();
     this.idleTimer = setTimeout(() => {
       this.idleTimer = null;
-      this.zone.run(() => this.commitCurrentToTranscript());
+      this.enqueue(() => this.commitCurrentToTranscript());
     }, IDLE_COMMIT_MS);
   }
 
@@ -241,6 +288,7 @@ export class SpeechTestPage implements OnInit, OnDestroy {
 
   private resetStage(): void {
     this.clearIdleTimer();
+    this.commitChain = Promise.resolve();
     this.currentWord = null;
     this.transcript = [];
     this.spokenCount = 0;
