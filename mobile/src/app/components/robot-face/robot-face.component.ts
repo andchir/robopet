@@ -169,7 +169,9 @@ export class RobotFaceComponent implements OnInit, OnDestroy {
     ctx.fillStyle = this.params.bgColor;
     ctx.fillRect(0, 0, w, h);
 
-    this.drawFacePlate(w, h, scale);
+    // Faceplate frame is drawn by the host element via CSS (border-radius +
+    // background) so the canvas paints features directly without an extra
+    // inner rounded outline.
 
     const eyeSpacing = 55 * scale;
     const eyeY = cy - 20 * scale + idleY;
@@ -182,34 +184,6 @@ export class RobotFaceComponent implements OnInit, OnDestroy {
     this.drawEye(cx + eyeSpacing, eyeY, scale, blink);
 
     this.drawMouth(cx, cy + 40 * scale + idleY, scale);
-  }
-
-  private drawRoundRect(x: number, y: number, w: number, h: number, r: number): void {
-    const { ctx } = this;
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.arcTo(x + w, y, x + w, y + r, r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
-    ctx.lineTo(x + r, y + h);
-    ctx.arcTo(x, y + h, x, y + h - r, r);
-    ctx.lineTo(x, y + r);
-    ctx.arcTo(x, y, x + r, y, r);
-    ctx.closePath();
-  }
-
-  private drawFacePlate(w: number, h: number, scale: number): void {
-    const { ctx } = this;
-    const margin = 20 * scale;
-    const radius = 24 * scale;
-
-    this.drawRoundRect(margin, margin, w - margin * 2, h - margin * 2, radius);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.02)';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
   }
 
   private drawBrow(x: number, y: number, scale: number, isLeft: boolean): void {

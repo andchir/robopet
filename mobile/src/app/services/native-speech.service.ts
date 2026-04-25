@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { BehaviorSubject, Observable, combineLatest, map } from 'rxjs';
+import { SpeechStreamService } from './speech-stream.service';
 
 /** Speech recognition constructor available in Android WebView / Chrome. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -22,6 +23,8 @@ export class NativeSpeechService {
 
   private readonly listening$ = new BehaviorSubject<boolean>(false);
   private readonly processing$ = new BehaviorSubject<boolean>(false);
+
+  constructor(private speechStream: SpeechStreamService) {}
 
   get isListening$(): Observable<boolean> {
     return this.listening$.asObservable();
@@ -66,14 +69,20 @@ export class NativeSpeechService {
       const rec = new SR();
       rec.lang = language;
       rec.continuous = true;
-      rec.interimResults = false;
+      // Interim results let us stream words to the visualization layer as
+      // they're recognized — the final transcript still aggregates only the
+      // `isFinal` chunks, so the chat side of the app is unaffected.
+      rec.interimResults = true;
       rec.maxAlternatives = 1;
       this.recognition = rec;
 
       const transcripts: string[] = [];
+      let finalText = '';
 
       let resolveSessionEnd!: () => void;
       this.sessionEndPromise = new Promise<void>(r => { resolveSessionEnd = r; });
+
+      this.speechStream.startSession();
 
       rec.onstart = () => {
         console.log('[NativeSpeech] Recognition started, lang=', language);
@@ -82,13 +91,19 @@ export class NativeSpeechService {
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       rec.onresult = (event: any) => {
+        let interim = '';
         for (let i = event.resultIndex; i < event.results.length; i++) {
+          const chunk = event.results[i][0].transcript as string;
           if (event.results[i].isFinal) {
-            const chunk = event.results[i][0].transcript;
             console.log(`[NativeSpeech] Chunk: "${chunk}"`);
             transcripts.push(chunk);
+            finalText += (finalText ? ' ' : '') + chunk.trim();
+          } else {
+            interim += chunk + ' ';
           }
         }
+        const cumulative = (finalText + (interim ? ' ' + interim : '')).trim();
+        this.speechStream.feedCumulative(cumulative);
       };
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -2,22 +2,33 @@
   display: flex;
   flex-direction: column;
   height: 100%;
-  padding: 16px;
+  padding: 12px;
+  gap: 12px;
 }
 
+// Compact face panel — square, height-driven, centered horizontally so the
+// face fills its container without wasted side margins. Keeping it square
+// also lets the canvas's `min(w, h) / 320` scale formula use the full area,
+// so the eyes/mouth render at their largest possible size for the available
+// vertical space.
 .face-area {
-  flex: 1;
+  flex: 0 0 auto;
+  height: clamp(220px, 38vh, 320px);
+  aspect-ratio: 1 / 1;
+  align-self: center;
   min-height: 0;
 }
 
-.status-bar {
+// Word stage + transcript stretches to fill any remaining vertical space.
+.speech-area {
+  flex: 1 1 auto;
+  min-height: 0;
   display: flex;
-  justify-content: center;
-  padding: 8px 0;
 }
 
 .controls {
+  flex: 0 0 auto;
   display: flex;
   justify-content: center;
-  padding: 16px 0;
+  padding: 4px 0 calc(8px + env(safe-area-inset-bottom));
 }

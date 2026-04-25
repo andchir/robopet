@@ -1,0 +1,23 @@
+<div class="speech-words" #stageEl>
+  <div class="word-stage">
+    <span
+      *ngIf="currentWord"
+      class="spotlight"
+      [attr.data-word-id]="currentWord.id"
+      [style.--rot]="currentWord.rotation + 'deg'"
+      [style.--hue]="currentWord.hue">
+      {{ currentWord.text }}
+    </span>
+  </div>
+
+  <div class="transcript-area" #transcriptContainer>
+    <div class="transcript">
+      <span
+        *ngFor="let w of transcript; trackBy: trackById"
+        class="transcript-word"
+        [attr.data-word-id]="w.id">
+        {{ w.text }}
+      </span>
+    </div>
+  </div>
+</div>

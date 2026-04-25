@@ -7,6 +7,7 @@ import { WhisperService } from '../../services/whisper.service';
 import { NativeSpeechService } from '../../services/native-speech.service';
 import { CapacitorSpeechService } from '../../services/capacitor-speech.service';
 import { VadService } from '../../services/vad.service';
+import { SpeechStreamService } from '../../services/speech-stream.service';
 
 @Component({
   selector: 'app-voice-button',
@@ -50,6 +51,7 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
     private nativeSpeechService: NativeSpeechService,
     private capacitorSpeechService: CapacitorSpeechService,
     private vadService: VadService,
+    private speechStream: SpeechStreamService,
   ) {
     this.isRecording$ = combineLatest([
       this.voiceService.isRecording$,
@@ -275,6 +277,9 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
   // ── Whisper (Xenova) mode ──────────────────────────────────────────────────
 
   private async onPressWhisper(): Promise<void> {
+    // Clear the visualization at the start of a fresh utterance — words for
+    // this take will be streamed once Whisper finishes transcribing them.
+    this.speechStream.startSession();
     // In auto mode the VAD already holds an open MediaStream — reuse it so
     // that MediaRecorder and the ScriptProcessorNode share a single capture
     // session. Opening a second getUserMedia on Android often fails silently.
@@ -317,6 +322,10 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
       return;
     }
 
+    // Stream the recognized words into the visualization — Whisper produces
+    // its transcript all at once, so we fan it out word-by-word with a small
+    // delay to mimic the live experience of the streaming backends.
+    void this.speechStream.streamFinalTranscript(text);
     this.chatService.processMessage(text);
   }
 
