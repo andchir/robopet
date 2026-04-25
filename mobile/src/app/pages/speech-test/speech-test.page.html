@@ -82,5 +82,36 @@
         </span>
       </div>
     </div>
+
+    <div class="log-panel" *ngIf="showLog">
+      <div class="log-list" #logContainer>
+        <div *ngIf="logEntries.length === 0" class="log-empty">
+          {{ 'speech-test.log-empty' | transloco }}
+        </div>
+        <div
+          *ngFor="let entry of logEntries; trackBy: trackByLogId"
+          class="log-entry"
+          [attr.data-severity]="entry.severity">
+          <span class="log-time">{{ entry.time }}</span>
+          <span class="log-message">{{ entry.message }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="log-controls">
+      <ion-toggle
+        mode="ios"
+        [(ngModel)]="showLog"
+        labelPlacement="start">
+        {{ 'speech-test.show-log' | transloco }}
+      </ion-toggle>
+      <button
+        type="button"
+        class="log-clear-btn"
+        *ngIf="showLog && logEntries.length > 0"
+        (click)="clearLog()">
+        {{ 'speech-test.log-clear' | transloco }}
+      </button>
+    </div>
   </div>
 </ion-content>

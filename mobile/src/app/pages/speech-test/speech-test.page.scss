@@ -325,3 +325,108 @@ ion-toolbar {
 .transcript-word:last-child {
   color: rgba(255, 255, 255, 0.95);
 }
+
+// ── Diagnostic log panel ───────────────────────────────────────────────────
+
+.log-panel {
+  flex: 0 0 auto;
+  margin: 0 12px;
+  max-height: 28vh;
+  background: rgba(8, 10, 24, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  animation: log-panel-in 220ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes log-panel-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.log-list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 8px 12px;
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.log-empty {
+  text-align: center;
+  padding: 14px 0;
+  color: rgba(255, 255, 255, 0.45);
+  font-style: italic;
+  font-family: inherit;
+}
+
+.log-entry {
+  display: flex;
+  gap: 8px;
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  .log-time {
+    flex: 0 0 auto;
+    color: rgba(255, 255, 255, 0.4);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .log-message {
+    flex: 1 1 auto;
+    word-break: break-word;
+  }
+
+  &[data-severity='success'] .log-message { color: #7ee0a3; }
+  &[data-severity='warn']    .log-message { color: #f5c66c; }
+  &[data-severity='error']   .log-message { color: #ff7a8a; }
+}
+
+// ── Log toggle row (always at the bottom) ──────────────────────────────────
+
+.log-controls {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+  background: rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(8px);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+
+  ion-toggle {
+    --background: rgba(255, 255, 255, 0.12);
+    --background-checked: rgba(106, 130, 251, 0.7);
+    --handle-background: #ffffff;
+    --handle-background-checked: #ffffff;
+    color: rgba(255, 255, 255, 0.85);
+    font-size: 14px;
+    flex: 1 1 auto;
+  }
+}
+
+.log-clear-btn {
+  flex: 0 0 auto;
+  padding: 6px 14px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 160ms ease;
+
+  &:active {
+    background: rgba(255, 255, 255, 0.16);
+  }
+}

@@ -1,6 +1,8 @@
 import { ChangeDetectorRef, Component, ElementRef, NgZone, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { Preferences } from '@capacitor/preferences';
+import { PluginListenerHandle } from '@capacitor/core';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
+import { TranslocoService } from '@jsverse/transloco';
 import { ChatService, SttMode } from '../../services/chat.service';
 import { CapacitorSpeechService } from '../../services/capacitor-speech.service';
 import { VoiceService } from '../../services/voice.service';
@@ -12,6 +14,18 @@ interface SpeechWord {
   rotation: number;
   hue: number;
 }
+
+type LogSeverity = 'info' | 'success' | 'warn' | 'error';
+
+interface LogEntry {
+  id: number;
+  time: string;
+  message: string;
+  severity: LogSeverity;
+}
+
+/** Cap on log size — older entries are dropped FIFO. Keeps the panel snappy. */
+const MAX_LOG_ENTRIES = 100;
 
 /** Web Speech API constructor (Chrome / Android WebView). */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -48,9 +62,16 @@ export class SpeechTestPage implements OnInit, OnDestroy {
   /** All accumulated previous words, rendered as flowing small text. */
   transcript: SpeechWord[] = [];
 
+  /** Whether the diagnostic log panel is visible. */
+  showLog = false;
+  /** Recent diagnostic events, newest at the bottom. Capped at MAX_LOG_ENTRIES. */
+  logEntries: LogEntry[] = [];
+
   @ViewChild('transcriptContainer') transcriptContainer?: ElementRef<HTMLElement>;
+  @ViewChild('logContainer') logContainer?: ElementRef<HTMLElement>;
 
   private nextWordId = 0;
+  private nextLogId = 0;
   private spokenCount = 0;
   private permissionGranted = false;
   private idleTimer: ReturnType<typeof setTimeout> | null = null;
@@ -61,15 +82,27 @@ export class SpeechTestPage implements OnInit, OnDestroy {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private recognition: any = null;
   private nativeFinalText = '';
+  /**
+   * Resolves when the current Web Speech session fires `onend`. We always
+   * await this before starting a new session — Android's WebView raises an
+   * "aborted" error if `start()` is called while the previous recognizer is
+   * still tearing down.
+   */
+  private nativeSessionEnd: Promise<void> = Promise.resolve();
 
   // Capacitor SpeechRecognition state
   private capacitorActive = false;
+  private capacitorPartialHandle: PluginListenerHandle | null = null;
+  private capacitorStateHandle: PluginListenerHandle | null = null;
+  /** Set to true while we are intentionally restarting the recognizer. */
+  private capacitorRestarting = false;
 
   constructor(
     private chatService: ChatService,
     private voiceService: VoiceService,
     private whisperService: WhisperService,
     private capacitorSpeechService: CapacitorSpeechService,
+    private transloco: TranslocoService,
     private zone: NgZone,
     private cd: ChangeDetectorRef,
   ) {}
@@ -95,6 +128,10 @@ export class SpeechTestPage implements OnInit, OnDestroy {
     return word.id;
   }
 
+  trackByLogId(_index: number, entry: LogEntry): number {
+    return entry.id;
+  }
+
   // ── Public actions ────────────────────────────────────────────────────────
 
   async onModeChange(): Promise<void> {
@@ -103,6 +140,7 @@ export class SpeechTestPage implements OnInit, OnDestroy {
     }
     this.permissionGranted = false;
     this.statusKey = '';
+    this.log('mode-changed', { mode: this.modeLabel(this.sttMode) });
     if (this.sttMode === 'whisper') {
       this.whisperService.preload();
     }
@@ -116,11 +154,73 @@ export class SpeechTestPage implements OnInit, OnDestroy {
     }
   }
 
+  clearLog(): void {
+    this.logEntries = [];
+    this.nextLogId = 0;
+  }
+
+  // ── Log helpers ───────────────────────────────────────────────────────────
+
+  /**
+   * Append one entry to the diagnostic log. Translates via transloco so the
+   * panel matches the current UI locale. Always runs inside Angular zone so
+   * native callbacks (Web Speech / Capacitor) update the view reliably.
+   */
+  private log(
+    key: string,
+    params: Record<string, string> = {},
+    severity: LogSeverity = 'info',
+  ): void {
+    const message = this.transloco.translate(`speech-test.log.${key}`, params);
+    const entry: LogEntry = {
+      id: ++this.nextLogId,
+      time: this.formatTime(new Date()),
+      message,
+      severity,
+    };
+
+    const append = () => {
+      this.logEntries = [...this.logEntries, entry];
+      // FIFO eviction once we exceed the cap.
+      if (this.logEntries.length > MAX_LOG_ENTRIES) {
+        this.logEntries = this.logEntries.slice(-MAX_LOG_ENTRIES);
+      }
+      if (this.showLog) this.scrollLogToEnd();
+    };
+
+    if (NgZone.isInAngularZone()) {
+      append();
+    } else {
+      this.zone.run(append);
+    }
+  }
+
+  private modeLabel(mode: SttMode): string {
+    return this.transloco.translate(`speech-test.mode-${mode}`);
+  }
+
+  private formatTime(d: Date): string {
+    const pad = (n: number) => n.toString().padStart(2, '0');
+    return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+
+  private scrollLogToEnd(): void {
+    requestAnimationFrame(() => {
+      const el = this.logContainer?.nativeElement;
+      if (el) el.scrollTop = el.scrollHeight;
+    });
+  }
+
   // ── Word stage helpers ────────────────────────────────────────────────────
 
   private addWord(text: string): void {
     const trimmed = text.trim();
     if (!trimmed) return;
+    // For whisper we already logged the full transcript once — skip per-word
+    // entries to avoid duplicating the same content in the diagnostic panel.
+    if (this.sttMode !== 'whisper') {
+      this.log('word', { text: trimmed }, 'success');
+    }
     this.enqueue(() => this.processIncomingWord(trimmed));
   }
 
@@ -309,6 +409,11 @@ export class SpeechTestPage implements OnInit, OnDestroy {
     } else {
       this.permissionGranted = await this.voiceService.requestPermission();
     }
+    this.log(
+      this.permissionGranted ? 'permission-granted' : 'permission-denied',
+      {},
+      this.permissionGranted ? 'success' : 'error',
+    );
     return this.permissionGranted;
   }
 
@@ -324,6 +429,7 @@ export class SpeechTestPage implements OnInit, OnDestroy {
     }
 
     this.isListening = true;
+    this.log('started', { mode: this.modeLabel(this.sttMode), lang: this.ttsLang }, 'success');
     try {
       if (this.sttMode === 'native') {
         await this.startNative();
@@ -336,6 +442,7 @@ export class SpeechTestPage implements OnInit, OnDestroy {
       console.error('[SpeechTest] start failed', err);
       this.isListening = false;
       this.statusKey = 'speech-test.status-error';
+      this.log('error', { message: this.errorMessage(err) }, 'error');
     }
   }
 
@@ -350,15 +457,29 @@ export class SpeechTestPage implements OnInit, OnDestroy {
       } else {
         await this.stopWhisper();
       }
+      if (!silent) this.log('stopped', {}, 'info');
     } catch (err) {
       console.error('[SpeechTest] stop failed', err);
-      if (!silent) this.statusKey = 'speech-test.status-error';
+      if (!silent) {
+        this.statusKey = 'speech-test.status-error';
+        this.log('error', { message: this.errorMessage(err) }, 'error');
+      }
     }
+  }
+
+  private errorMessage(err: unknown): string {
+    if (err instanceof Error) return err.message;
+    if (typeof err === 'string') return err;
+    return String(err ?? 'unknown');
   }
 
   // ── Native (Web Speech API) ───────────────────────────────────────────────
 
   private async startNative(): Promise<void> {
+    // Wait for any previous session to fully tear down — required on Android
+    // WebView, otherwise `rec.start()` throws "aborted".
+    await this.nativeSessionEnd;
+
     const w = window as Window & typeof globalThis & {
       SpeechRecognition?: SpeechRecognitionCtor;
       webkitSpeechRecognition?: SpeechRecognitionCtor;
@@ -372,11 +493,17 @@ export class SpeechTestPage implements OnInit, OnDestroy {
     rec.interimResults = true;
     rec.maxAlternatives = 1;
 
+    // Each session emits its own transcript starting from word 0; wipe the
+    // accumulator so emitNewWordsFrom() doesn't skip leading words.
     this.nativeFinalText = '';
+    this.spokenCount = 0;
     this.recognition = rec;
 
+    let resolveSessionEnd!: () => void;
+    this.nativeSessionEnd = new Promise<void>(r => { resolveSessionEnd = r; });
+
     rec.onstart = () => {
-      console.log('[SpeechTest] Native recognition started');
+      console.log('[SpeechTest] Native recognition started, lang=', this.ttsLang);
     };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -391,15 +518,23 @@ export class SpeechTestPage implements OnInit, OnDestroy {
         }
       }
       const combined = (this.nativeFinalText + interim).trim();
-      this.emitNewWordsFrom(combined);
+      // The browser fires this outside Angular's NgZone — wrap so isListening
+      // and word-stage mutations propagate to the template.
+      this.zone.run(() => this.emitNewWordsFrom(combined));
     };
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     rec.onerror = (event: any) => {
       console.warn('[SpeechTest] Native recognition error:', event.error);
-      if (event.error !== 'no-speech' && event.error !== 'aborted') {
+      // "no-speech" / "aborted" are normal lifecycle events on Android; let
+      // onend handle them and (if still listening) auto-restart.
+      if (event.error === 'no-speech') {
+        this.log('no-speech', {}, 'warn');
+      } else if (event.error !== 'aborted') {
+        this.log('error', { message: String(event.error) }, 'error');
         this.zone.run(() => {
           this.statusKey = 'speech-test.status-error';
+          this.isListening = false;
         });
       }
     };
@@ -407,21 +542,45 @@ export class SpeechTestPage implements OnInit, OnDestroy {
     rec.onend = () => {
       console.log('[SpeechTest] Native recognition ended');
       this.recognition = null;
-      this.zone.run(() => {
-        this.isListening = false;
-      });
+      resolveSessionEnd();
+
+      // Android WebView often ignores `continuous = true` and stops after
+      // every utterance. Auto-restart so the test page stays "listening"
+      // until the user explicitly taps stop.
+      if (this.isListening && this.sttMode === 'native') {
+        this.log('auto-restart', {}, 'info');
+        this.startNative().catch(err => {
+          console.error('[SpeechTest] Native auto-restart failed', err);
+          this.log('error', { message: this.errorMessage(err) }, 'error');
+          this.zone.run(() => {
+            this.isListening = false;
+            this.statusKey = 'speech-test.status-error';
+          });
+        });
+      } else {
+        this.zone.run(() => {
+          this.isListening = false;
+        });
+      }
     };
 
-    rec.start();
+    try {
+      rec.start();
+    } catch (err) {
+      this.recognition = null;
+      resolveSessionEnd();
+      throw err;
+    }
   }
 
   private stopNative(): void {
+    // Flip isListening BEFORE stop() so onend doesn't auto-restart.
+    this.zone.run(() => { this.isListening = false; });
     try {
       this.recognition?.stop();
     } catch {
       // ignore
     }
-    this.isListening = false;
   }
 
   /**
@@ -437,54 +596,112 @@ export class SpeechTestPage implements OnInit, OnDestroy {
   }
 
   // ── Capacitor SpeechRecognition (with partial results) ────────────────────
+  //
+  // When `partialResults: true`, the @capacitor-community/speech-recognition
+  // plugin resolves `start()` IMMEDIATELY after the recognizer kicks off
+  // (Android: SpeechRecognition.java line 198-199; iOS: Plugin.swift line
+  // 133-135). Results arrive asynchronously via the `partialResults` listener,
+  // so we must NOT tear down listeners right after `start()` returns —
+  // otherwise no recognized text ever reaches the page.
 
   private async startCapacitor(): Promise<void> {
     const { available } = await SpeechRecognition.available();
     if (!available) throw new Error('Capacitor SpeechRecognition unavailable');
 
-    await SpeechRecognition.removeAllListeners();
+    // Defensive: drop any stale listeners from a previous (interrupted) run.
+    await this.cleanupCapacitorListeners();
 
-    await SpeechRecognition.addListener('partialResults', (data: { matches?: string[] }) => {
-      const transcript = data.matches?.[0] ?? '';
-      if (transcript) this.emitNewWordsFrom(transcript);
-    });
+    this.capacitorPartialHandle = await SpeechRecognition.addListener(
+      'partialResults',
+      (data: { matches?: string[] }) => {
+        const transcript = data.matches?.[0] ?? '';
+        if (!transcript) return;
+        // Plugin invokes listeners outside Angular's NgZone.
+        this.zone.run(() => this.emitNewWordsFrom(transcript));
+      },
+    );
 
-    await SpeechRecognition.addListener('listeningState', ({ status }) => {
-      console.log('[SpeechTest] Capacitor listening state:', status);
-      if (status === 'stopped') {
-        this.zone.run(() => {
-          this.isListening = false;
-        });
-      }
-    });
+    this.capacitorStateHandle = await SpeechRecognition.addListener(
+      'listeningState',
+      ({ status }) => {
+        console.log('[SpeechTest] Capacitor listening state:', status);
+        if (status !== 'stopped') return;
 
+        this.capacitorActive = false;
+
+        // Android's SpeechRecognizer fires onEndOfSpeech after every pause,
+        // so the plugin's listening state goes back to "stopped" between
+        // utterances. While the user still wants to listen, transparently
+        // restart a new session so the test page stays "live".
+        if (this.isListening && this.sttMode === 'capacitor' && !this.capacitorRestarting) {
+          this.log('auto-restart', {}, 'info');
+          void this.restartCapacitorSession();
+        }
+      },
+    );
+
+    await this.startCapacitorSession();
+  }
+
+  /** Issue the actual `SpeechRecognition.start({...})` call. */
+  private async startCapacitorSession(): Promise<void> {
+    // New session emits its transcript starting from word 0 — reset counters
+    // so emitNewWordsFrom() doesn't skip the first words.
+    this.spokenCount = 0;
     this.capacitorActive = true;
+
+    // With partialResults=true the plugin resolves this promise immediately
+    // after the recognizer starts; do NOT treat the resolution as "session
+    // ended" or tear down listeners here.
+    await SpeechRecognition.start({
+      language: this.ttsLang,
+      maxResults: 1,
+      partialResults: true,
+      popup: false,
+    });
+  }
+
+  private async restartCapacitorSession(): Promise<void> {
+    this.capacitorRestarting = true;
     try {
-      const result = await SpeechRecognition.start({
-        language: this.ttsLang,
-        maxResults: 1,
-        partialResults: true,
-        popup: false,
-      });
-      // Final result may contain words we haven't streamed yet.
-      const finalText = result.matches?.[0] ?? '';
-      if (finalText) this.emitNewWordsFrom(finalText);
-    } finally {
-      this.capacitorActive = false;
-      await SpeechRecognition.removeAllListeners();
+      // Brief delay so the previous SpeechRecognizer fully releases the mic
+      // before we ask for a new one — back-to-back start() on Android can
+      // fail with "client side error".
+      await new Promise<void>(r => setTimeout(r, 200));
+      if (!this.isListening || this.sttMode !== 'capacitor') return;
+      await this.startCapacitorSession();
+    } catch (err) {
+      console.error('[SpeechTest] Capacitor auto-restart failed', err);
+      this.log('error', { message: this.errorMessage(err) }, 'error');
       this.zone.run(() => {
         this.isListening = false;
+        this.statusKey = 'speech-test.status-error';
       });
+      await this.cleanupCapacitorListeners();
+    } finally {
+      this.capacitorRestarting = false;
     }
   }
 
+  private async cleanupCapacitorListeners(): Promise<void> {
+    try { await this.capacitorPartialHandle?.remove(); } catch { /* ignore */ }
+    try { await this.capacitorStateHandle?.remove(); } catch { /* ignore */ }
+    this.capacitorPartialHandle = null;
+    this.capacitorStateHandle = null;
+  }
+
   private async stopCapacitor(): Promise<void> {
-    if (!this.capacitorActive) {
-      this.isListening = false;
-      return;
+    // Flip isListening BEFORE stopping so the listeningState handler doesn't
+    // auto-restart the session.
+    this.zone.run(() => { this.isListening = false; });
+
+    if (this.capacitorActive) {
+      try { await SpeechRecognition.stop(); } catch (err) {
+        console.warn('[SpeechTest] Capacitor stop() failed', err);
+      }
     }
-    await SpeechRecognition.stop();
-    this.isListening = false;
+    this.capacitorActive = false;
+    await this.cleanupCapacitorListeners();
   }
 
   // ── Whisper (record then stream words) ────────────────────────────────────
@@ -497,24 +714,36 @@ export class SpeechTestPage implements OnInit, OnDestroy {
     let audioBase64 = '';
     try {
       audioBase64 = await this.voiceService.stopRecording();
-    } catch {
+    } catch (err) {
       this.isListening = false;
+      this.log('error', { message: this.errorMessage(err) }, 'error');
       return;
     }
     this.isListening = false;
 
-    if (!audioBase64) return;
+    if (!audioBase64) {
+      this.log('no-speech', {}, 'warn');
+      return;
+    }
 
     this.isProcessing = true;
     this.statusKey = 'speech-test.status-processing';
+    this.log('transcribing', {}, 'info');
     try {
       const langCode = toLangCode(this.ttsLang);
       const text = await this.whisperService.transcribe(audioBase64, langCode);
       this.statusKey = '';
+      const trimmed = text.trim();
+      if (trimmed) {
+        this.log('transcript', { text: trimmed }, 'success');
+      } else {
+        this.log('no-speech', {}, 'warn');
+      }
       await this.streamWordsWithDelay(text);
     } catch (err) {
       console.error('[SpeechTest] Whisper transcription failed', err);
       this.statusKey = 'speech-test.status-error';
+      this.log('error', { message: this.errorMessage(err) }, 'error');
     } finally {
       this.isProcessing = false;
     }

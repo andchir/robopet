@@ -40,6 +40,22 @@
     "processing": "Обработка…",
     "status-permission": "Нет доступа к микрофону",
     "status-error": "Ошибка распознавания",
-    "status-processing": "Распознаём речь…"
+    "status-processing": "Распознаём речь…",
+    "show-log": "Показать журнал",
+    "log-clear": "Очистить",
+    "log-empty": "Журнал пуст",
+    "log": {
+      "mode-changed": "Режим → {{mode}}",
+      "permission-granted": "Доступ к микрофону разрешён",
+      "permission-denied": "Доступ к микрофону запрещён",
+      "started": "Запущено ({{mode}}, {{lang}})",
+      "stopped": "Остановлено",
+      "auto-restart": "Автоперезапуск…",
+      "word": "Слово: «{{text}}»",
+      "transcribing": "Распознаём аудио…",
+      "transcript": "Распознано: «{{text}}»",
+      "no-speech": "Речь не обнаружена",
+      "error": "Ошибка: {{message}}"
+    }
   }
 }

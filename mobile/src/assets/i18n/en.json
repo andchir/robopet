@@ -40,6 +40,22 @@
     "processing": "Processing…",
     "status-permission": "Microphone access denied",
     "status-error": "Recognition error",
-    "status-processing": "Transcribing speech…"
+    "status-processing": "Transcribing speech…",
+    "show-log": "Show log",
+    "log-clear": "Clear",
+    "log-empty": "No events yet",
+    "log": {
+      "mode-changed": "Mode → {{mode}}",
+      "permission-granted": "Microphone permission granted",
+      "permission-denied": "Microphone permission denied",
+      "started": "Started ({{mode}}, {{lang}})",
+      "stopped": "Stopped",
+      "auto-restart": "Auto-restarting…",
+      "word": "Word: \"{{text}}\"",
+      "transcribing": "Transcribing audio…",
+      "transcript": "Transcribed: \"{{text}}\"",
+      "no-speech": "No speech detected",
+      "error": "Error: {{message}}"
+    }
   }
 }
