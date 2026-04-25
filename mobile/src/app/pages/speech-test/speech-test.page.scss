@@ -1,0 +1,327 @@
+:host {
+  --stage-fg: #ffffff;
+  --stage-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+}
+
+// ── Toolbar ────────────────────────────────────────────────────────────────
+
+ion-toolbar {
+  --background: rgba(13, 16, 36, 0.85);
+  --color: #ffffff;
+  --border-color: rgba(255, 255, 255, 0.08);
+}
+
+// ── Record button (centered, large) ────────────────────────────────────────
+
+.rec-bar {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 18px 16px 4px;
+}
+
+.rec-btn {
+  position: relative;
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  border: none;
+  background: linear-gradient(135deg, #6a82fb, #fc5c7d);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow:
+    0 14px 36px rgba(252, 92, 125, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.16) inset;
+  transition: transform 180ms ease, box-shadow 220ms ease;
+
+  ion-icon {
+    font-size: 36px;
+    z-index: 2;
+  }
+
+  ion-spinner {
+    --color: #fff;
+    width: 32px;
+    height: 32px;
+  }
+
+  &:active {
+    transform: scale(0.94);
+  }
+
+  &.active {
+    background: linear-gradient(135deg, #ff4b6e, #ff8e53);
+    box-shadow:
+      0 14px 36px rgba(255, 75, 110, 0.6),
+      0 0 0 1px rgba(255, 255, 255, 0.22) inset;
+  }
+
+  &.processing {
+    opacity: 0.85;
+    cursor: progress;
+  }
+
+  &:disabled {
+    transform: none;
+  }
+}
+
+.rec-pulse {
+  position: absolute;
+  inset: -8px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  animation: rec-pulse 1.4s ease-out infinite;
+  pointer-events: none;
+}
+
+@keyframes rec-pulse {
+  0%   { transform: scale(0.85); opacity: 0.85; }
+  100% { transform: scale(1.7);  opacity: 0;    }
+}
+
+// ── Page background ────────────────────────────────────────────────────────
+
+.speech-test-content {
+  --background: transparent;
+  position: relative;
+  overflow: hidden;
+}
+
+.page-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 20% 10%, #1a1f3d 0%, transparent 60%),
+    radial-gradient(circle at 80% 90%, #261639 0%, transparent 55%),
+    linear-gradient(160deg, #0d1024 0%, #1c1140 100%);
+  z-index: 0;
+  pointer-events: none;
+}
+
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.55;
+  pointer-events: none;
+  animation: orb-float 14s ease-in-out infinite;
+}
+
+.orb-a {
+  width: 320px;
+  height: 320px;
+  top: -80px;
+  left: -60px;
+  background: radial-gradient(circle, #6a82fb 0%, transparent 70%);
+}
+
+.orb-b {
+  width: 260px;
+  height: 260px;
+  bottom: -40px;
+  right: -40px;
+  background: radial-gradient(circle, #fc5c7d 0%, transparent 70%);
+  animation-duration: 18s;
+  animation-direction: reverse;
+}
+
+.orb-c {
+  width: 200px;
+  height: 200px;
+  top: 40%;
+  left: 60%;
+  background: radial-gradient(circle, #4ee8c0 0%, transparent 70%);
+  animation-duration: 22s;
+}
+
+@keyframes orb-float {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50%      { transform: translate3d(40px, -30px, 0) scale(1.1); }
+}
+
+// ── Layout ─────────────────────────────────────────────────────────────────
+
+.layout {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+// ── Mode selector ──────────────────────────────────────────────────────────
+
+.mode-selector {
+  flex: 0 0 auto;
+  padding: 12px 16px 0;
+
+  ion-segment {
+    --background: rgba(255, 255, 255, 0.06);
+    border-radius: 14px;
+    padding: 4px;
+    backdrop-filter: blur(12px);
+  }
+
+  ion-segment-button {
+    --color: rgba(255, 255, 255, 0.6);
+    --color-checked: #ffffff;
+    --indicator-color: linear-gradient(135deg, #6a82fb, #fc5c7d);
+    --indicator-box-shadow: 0 6px 16px rgba(106, 130, 251, 0.45);
+    min-height: 38px;
+    text-transform: none;
+    font-weight: 500;
+    letter-spacing: 0;
+
+    ion-label {
+      font-size: 13px;
+    }
+  }
+}
+
+// ── Status banner ──────────────────────────────────────────────────────────
+
+.status-bar {
+  flex: 0 0 auto;
+  align-self: center;
+  margin-top: 10px;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.08);
+  padding: 6px 14px;
+  border-radius: 999px;
+  backdrop-filter: blur(8px);
+  animation: hint-pulse 2s ease-in-out infinite;
+}
+
+@keyframes hint-pulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 0.95; }
+}
+
+// ── Word stage (spotlight) ─────────────────────────────────────────────────
+
+.word-stage {
+  flex: 0 0 32vh;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 1200px;
+  pointer-events: none;
+}
+
+.stage-hint {
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 16px;
+  text-align: center;
+  padding: 0 32px;
+  max-width: 320px;
+  line-height: 1.5;
+  animation: hint-pulse 2.4s ease-in-out infinite;
+}
+
+.spotlight {
+  display: inline-block;
+  font-size: clamp(36px, 11vw, 72px);
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  color: var(--stage-fg);
+  background: linear-gradient(
+    135deg,
+    hsl(var(--hue, 240), 90%, 65%),
+    hsl(calc(var(--hue, 240) + 40), 95%, 60%)
+  );
+  padding: 18px 32px;
+  border-radius: 22px;
+  box-shadow:
+    var(--stage-shadow),
+    0 0 0 1px rgba(255, 255, 255, 0.12) inset,
+    0 0 30px hsla(var(--hue, 240), 95%, 60%, 0.4);
+  white-space: nowrap;
+  max-width: 90vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  user-select: none;
+  will-change: transform, filter, opacity;
+  transform-origin: center;
+  animation: spotlight-enter 520ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes spotlight-enter {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -90px, 0) scale(0.35) rotate(calc(var(--rot, 0deg) * -1));
+    filter: blur(10px);
+  }
+  55% {
+    opacity: 1;
+    transform: translate3d(0, 10px, 0) scale(1.08) rotate(calc(var(--rot, 0deg) * 0.6));
+    filter: blur(0);
+  }
+  80% {
+    transform: translate3d(0, -3px, 0) scale(0.98) rotate(calc(var(--rot, 0deg) * 0.9));
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1) rotate(var(--rot, 0deg));
+    filter: blur(0);
+  }
+}
+
+// ── Transcript (accumulated text) ──────────────────────────────────────────
+
+.transcript-area {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 20px calc(28px + env(safe-area-inset-bottom));
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 24px,
+    #000 calc(100% - 24px),
+    transparent 100%
+  );
+          mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    #000 24px,
+    #000 calc(100% - 24px),
+    transparent 100%
+  );
+}
+
+.transcript {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  justify-content: center;
+  gap: 6px 10px;
+  font-size: clamp(15px, 4vw, 18px);
+  font-weight: 500;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.78);
+  text-align: center;
+}
+
+.transcript-word {
+  display: inline-block;
+  padding: 2px 0;
+  user-select: text;
+  will-change: transform, filter, opacity;
+  // The first frame of the FLIP animation (set via Web Animations API with
+  // fill: 'backwards') overrides this transition during the morph; once it
+  // ends, the element settles into its inline position.
+  transition: color 200ms ease;
+}
+
+// Subtle highlight for the most recently landed transcript word.
+.transcript-word:last-child {
+  color: rgba(255, 255, 255, 0.95);
+}

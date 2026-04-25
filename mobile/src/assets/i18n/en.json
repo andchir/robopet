@@ -26,6 +26,20 @@
     "qr-scanner-title": "Scan QR Code",
     "qr-scanner-hint": "Point the camera at the QR code",
     "qr-scan-success": "Device ID saved successfully",
-    "device-id-hint": "Each device has a unique ID used to link devices together. Use \"Show QR Code\" so another device can scan it, or use \"Identify\" to scan another device's QR code. This allows multiple devices to sync and will be used for server authentication."
+    "device-id-hint": "Each device has a unique ID used to link devices together. Use \"Show QR Code\" so another device can scan it, or use \"Identify\" to scan another device's QR code. This allows multiple devices to sync and will be used for server authentication.",
+    "open-speech-test": "Speech recognition test"
+  },
+  "speech-test": {
+    "title": "Speech recognition",
+    "mode-whisper": "Whisper",
+    "mode-native": "Web Speech",
+    "mode-capacitor": "Native",
+    "hint": "Tap the microphone button and start speaking — words will appear one after another.",
+    "start": "Speak",
+    "stop": "Stop",
+    "processing": "Processing…",
+    "status-permission": "Microphone access denied",
+    "status-error": "Recognition error",
+    "status-processing": "Transcribing speech…"
   }
 }

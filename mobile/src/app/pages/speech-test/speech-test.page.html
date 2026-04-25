@@ -1,0 +1,86 @@
+<ion-header [translucent]="true">
+  <ion-toolbar>
+    <ion-buttons slot="start">
+      <ion-back-button defaultHref="/settings"></ion-back-button>
+    </ion-buttons>
+    <ion-title>{{ 'speech-test.title' | transloco }}</ion-title>
+  </ion-toolbar>
+</ion-header>
+
+<ion-content [fullscreen]="true" class="speech-test-content">
+  <div class="page-bg">
+    <div class="orb orb-a"></div>
+    <div class="orb orb-b"></div>
+    <div class="orb orb-c"></div>
+  </div>
+
+  <div class="layout">
+    <div class="mode-selector">
+      <ion-segment
+        [(ngModel)]="sttMode"
+        (ionChange)="onModeChange()"
+        [disabled]="isListening || isProcessing"
+        mode="ios">
+        <ion-segment-button value="whisper">
+          <ion-label>{{ 'speech-test.mode-whisper' | transloco }}</ion-label>
+        </ion-segment-button>
+        <ion-segment-button value="native">
+          <ion-label>{{ 'speech-test.mode-native' | transloco }}</ion-label>
+        </ion-segment-button>
+        <ion-segment-button value="capacitor">
+          <ion-label>{{ 'speech-test.mode-capacitor' | transloco }}</ion-label>
+        </ion-segment-button>
+      </ion-segment>
+    </div>
+
+    <div class="rec-bar">
+      <button
+        type="button"
+        class="rec-btn"
+        [class.active]="isListening"
+        [class.processing]="isProcessing"
+        [disabled]="isProcessing"
+        [attr.aria-label]="(isListening ? 'speech-test.stop' : 'speech-test.start') | transloco"
+        (click)="toggle()">
+        <span class="rec-pulse" *ngIf="isListening"></span>
+        <ion-icon
+          *ngIf="!isProcessing"
+          [name]="isListening ? 'stop' : 'mic'">
+        </ion-icon>
+        <ion-spinner *ngIf="isProcessing" name="crescent"></ion-spinner>
+      </button>
+    </div>
+
+    <div class="status-bar" *ngIf="statusKey">
+      {{ statusKey | transloco }}
+    </div>
+
+    <div class="word-stage">
+      <div
+        class="stage-hint"
+        *ngIf="!isListening && !isProcessing && !currentWord && transcript.length === 0">
+        {{ 'speech-test.hint' | transloco }}
+      </div>
+
+      <span
+        *ngIf="currentWord"
+        class="spotlight"
+        [attr.data-word-id]="currentWord.id"
+        [style.--rot]="currentWord.rotation + 'deg'"
+        [style.--hue]="currentWord.hue">
+        {{ currentWord.text }}
+      </span>
+    </div>
+
+    <div class="transcript-area" #transcriptContainer>
+      <div class="transcript">
+        <span
+          *ngFor="let w of transcript; trackBy: trackById"
+          class="transcript-word"
+          [attr.data-word-id]="w.id">
+          {{ w.text }}
+        </span>
+      </div>
+    </div>
+  </div>
+</ion-content>

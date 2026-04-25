@@ -11,6 +11,10 @@ const routes: Routes = [
     loadChildren: () => import('./pages/settings/settings.module').then(m => m.SettingsPageModule),
   },
   {
+    path: 'speech-test',
+    loadChildren: () => import('./pages/speech-test/speech-test.module').then(m => m.SpeechTestPageModule),
+  },
+  {
     path: '',
     redirectTo: 'home',
     pathMatch: 'full',
