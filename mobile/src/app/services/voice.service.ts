@@ -59,7 +59,9 @@ export class VoiceService {
   }
 
   async stopRecording(): Promise<string> {
-    const result = await VoiceRecorder.stopRecording().finally(() => this.recording$.next(false));
+    // Capture ends on release; retrieving/encoding the audio can take longer.
+    this.recording$.next(false);
+    const result = await VoiceRecorder.stopRecording();
     const audio = result.value.recordDataBase64 ?? '';
     const kb = ((audio.length * 3) / 4 / 1024).toFixed(1);
     console.log(`[Voice] Recording stopped — audio size≈${kb} KB`);
@@ -171,6 +173,7 @@ export class VoiceService {
         };
         reader.readAsDataURL(blob);
       };
+      this.recording$.next(false);
       this.mediaRecorder.stop();
       this.mediaRecorder = null;
     });

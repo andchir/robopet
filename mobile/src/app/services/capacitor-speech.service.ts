@@ -6,6 +6,7 @@ import { SpeechStreamService } from './speech-stream.service';
 
 @Injectable({ providedIn: 'root' })
 export class CapacitorSpeechService {
+  private readonly recognition = SpeechRecognition;
   private readonly listening$ = new BehaviorSubject<boolean>(false);
   private readonly processing$ = new BehaviorSubject<boolean>(false);
   private listenPromise: Promise<string> | null = null;
@@ -55,67 +56,48 @@ export class CapacitorSpeechService {
       return this.listenPromise;
     }
 
+    let latestTranscript = '';
+    let stopRequested = false;
+    let ready = false;
+    let finishTimer: ReturnType<typeof setTimeout> | undefined;
+    let resolveResult!: (text: string) => void;
+    let rejectResult!: (error: unknown) => void;
+    const resultPromise = new Promise<string>((resolve, reject) => {
+      resolveResult = resolve;
+      rejectResult = reject;
+    });
+    // Android can emit "stopped" before release, without emitting it again
+    // for stop(). Allow final results to arrive, then finish independently.
+    const stop = () => {
+      if (!ready) return;
+      finishTimer ??= setTimeout(() => resolveResult(latestTranscript.trim()), 500);
+      void this.recognition.stop().catch(rejectResult);
+    };
+    this.markStopRequested = () => {
+      if (stopRequested) return;
+      stopRequested = true;
+      stop();
+    };
+
     this.listenPromise = (async () => {
-      let latestTranscript = '';
-      let stopRequested = false;
-      let resolveResult!: (text: string) => void;
-
-      const resultPromise = new Promise<string>(resolve => {
-        resolveResult = resolve;
-      });
-
-      this.partialHandle = await SpeechRecognition.addListener(
-        'partialResults',
-        (data: { matches?: string[] }) => {
+      try {
+        this.partialHandle = await this.recognition.addListener('partialResults', data => {
           const transcript = data.matches?.[0] ?? '';
           if (!transcript) return;
           latestTranscript = transcript;
           this.speechStream.feedCumulative(transcript);
-        },
-      );
-
-      this.stateHandle = await SpeechRecognition.addListener(
-        'listeningState',
-        ({ status }) => {
-          this.listening$.next(status === 'started');
-          if (status === 'stopped') {
-            this.processing$.next(false);
-            // Only resolve when the caller actually asked us to stop —
-            // Android's recognizer can briefly drop into "stopped" between
-            // utterances even when continuous listening is desired.
-            if (stopRequested) resolveResult(latestTranscript.trim());
-          }
-        },
-      );
-
-      this.speechStream.startSession();
-      this.listening$.next(true);
-
-      try {
-        // With partialResults: true the plugin resolves immediately after
-        // the recognizer kicks off; results arrive via the partialResults
-        // listener until stopListening() is called.
-        await SpeechRecognition.start({
-          language,
-          maxResults: 1,
-          partialResults: true,
-          popup: false,
         });
-      } catch (err) {
-        await this.cleanupListeners();
-        this.listening$.next(false);
-        this.processing$.next(false);
-        this.listenPromise = null;
-        throw err;
-      }
-
-      // Expose a way for stopListening() to mark the next "stopped" event
-      // as the terminal one.
-      this.markStopRequested = () => { stopRequested = true; };
-
-      try {
+        this.stateHandle = await this.recognition.addListener('listeningState', ({ status }) => {
+          this.listening$.next(!stopRequested && status === 'started');
+        });
+        this.speechStream.startSession();
+        await this.recognition.start({language, maxResults: 1, partialResults: true, popup: false});
+        ready = true;
+        if (stopRequested) stop();
+        else this.listening$.next(true);
         return await resultPromise;
       } finally {
+        clearTimeout(finishTimer);
         await this.cleanupListeners();
         this.listening$.next(false);
         this.processing$.next(false);
@@ -136,7 +118,7 @@ export class CapacitorSpeechService {
     this.processing$.next(true);
     this.listening$.next(false);
     this.markStopRequested?.();
-    void SpeechRecognition.stop();
+
   }
 
   private async cleanupListeners(): Promise<void> {

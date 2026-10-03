@@ -10,6 +10,7 @@ type SpeechRecognitionCtor = new () => any;
 export class NativeSpeechService {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private recognition: any = null;
+  private startGeneration = 0;
   private resultResolve: ((text: string) => void) | null = null;
   private resultReject: ((err: Error) => void) | null = null;
 
@@ -53,7 +54,9 @@ export class NativeSpeechService {
    * @param language BCP-47 tag, e.g. "en-US" or "ru-RU".
    */
   async startListening(language: string): Promise<string> {
+    const generation = this.startGeneration;
     await this.sessionEndPromise;
+    if (generation !== this.startGeneration) return '';
 
     return new Promise<string>((resolve, reject) => {
       const w = window as Window & typeof globalThis & { SpeechRecognition?: SpeechRecognitionCtor; webkitSpeechRecognition?: SpeechRecognitionCtor };
@@ -158,6 +161,7 @@ export class NativeSpeechService {
    * The Promise returned by {@link startListening} will resolve shortly after.
    */
   stopListening(): void {
+    ++this.startGeneration;
     if (this.recognition) {
       console.log('[NativeSpeech] Stopping recognition…');
       this.listening$.next(false);

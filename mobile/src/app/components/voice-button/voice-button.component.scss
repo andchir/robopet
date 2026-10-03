@@ -1,5 +1,19 @@
 .voice-controls {
   display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.voice-status {
+  margin: 0;
+  text-align: center;
+  font-size: 14px;
+  color: var(--ion-color-medium);
+}
+
+.capture-controls {
+  display: flex;
   align-items: center;
   gap: 20px;
 }
@@ -7,6 +21,12 @@
 .mic-btn {
   width: 144px;
   --border-radius: 9999px;
+  user-select: none;
+  -webkit-touch-callout: none;
+
+  &.button-disabled {
+    opacity: 0.75;
+  }
 }
 
 .auto-toggle {

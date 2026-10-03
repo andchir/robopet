@@ -1,35 +1,50 @@
 <div class="voice-controls">
-  <ion-button
-    shape="round"
-    size="large"
-    class="mic-btn"
-    [color]="autoMode ? 'primary'
-           : (isSpeaking$ | async) ? 'medium'
-           : (state$ | async) === 'recording' ? 'danger'
-           : (state$ | async) === 'loading' || (state$ | async) === 'transcribing' ? 'warning'
-           : 'primary'"
-    [disabled]="((isDisabled$ | async) && !(isRecording$ | async) && !starting) || autoMode"
-    style="touch-action: none"
-    (pointerdown)="onPointerDown($event)"
-    (pointerup)="onPointerUp($event)"
-    (pointercancel)="onPointerUp($event)"
-    (lostpointercapture)="onPointerUp($event)">
-    <ion-icon
-      [name]="autoMode ? 'mic-outline'
-             : (isSpeaking$ | async) ? 'stop-circle-outline'
-             : (state$ | async) === 'recording' ? 'mic'
-             : (state$ | async) === 'loading' ? 'cloud-download-outline'
-             : (state$ | async) === 'transcribing' ? 'hourglass-outline'
-             : 'mic-outline'">
-    </ion-icon>
-  </ion-button>
+  <div class="capture-controls">
+    <ion-button
+      shape="round"
+      size="large"
+      class="mic-btn"
+      [color]="(isSpeaking$ | async) ? 'medium'
+             : releasing ? 'warning'
+             : (state$ | async) === 'recording' ? 'danger'
+             : starting || releasing || (state$ | async) === 'loading' || (state$ | async) === 'transcribing' ? 'warning'
+             : 'primary'"
+      [disabled]="((isDisabled$ | async) && !(isRecording$ | async) && !starting) || releasing || autoMode"
+      style="touch-action: none"
+      (pointerdown)="onPointerDown($event)"
+      (pointerup)="onPointerUp($event)"
+      (pointercancel)="onPointerCancel($event)"
+      (lostpointercapture)="onPointerCancel($event)">
+      <ion-spinner
+        *ngIf="releasing || (!(isRecording$ | async) && (starting || (isLoading$ | async) || (isTranscribing$ | async))); else statusIcon"
+        name="crescent"
+        aria-label="Обработка речи">
+      </ion-spinner>
+      <ng-template #statusIcon>
+        <ion-icon
+          [name]="(isSpeaking$ | async) ? 'stop-circle-outline'
+                 : (isRecording$ | async) ? 'mic'
+                 : 'mic-outline'">
+        </ion-icon>
+      </ng-template>
+    </ion-button>
 
-  <p *ngIf="voiceError" role="alert">{{ voiceError }}</p>
-  <div class="auto-toggle">
-    <span class="auto-label">{{ 'voice-button.auto' | transloco }}</span>
-    <ion-toggle
-      [(ngModel)]="autoMode"
-      (ionChange)="onAutoModeChange()">
-    </ion-toggle>
+    <div class="auto-toggle">
+      <span class="auto-label">{{ 'voice-button.auto' | transloco }}</span>
+      <ion-toggle
+        [(ngModel)]="autoMode"
+        (ionChange)="onAutoModeChange()">
+      </ion-toggle>
+    </div>
   </div>
+  <p class="voice-status" role="status" aria-live="polite">
+    {{ ((isLoading$ | async) ? 'voice-button.preparing'
+        : (isSpeaking$ | async) ? 'voice-button.speaking'
+        : releasing || (isTranscribing$ | async) ? 'voice-button.processing'
+        : (isRecording$ | async) ? 'voice-button.listening'
+        : starting ? 'voice-button.preparing'
+        : autoMode ? 'voice-button.autoReady'
+        : 'voice-button.ready') | transloco }}
+  </p>
+  <p *ngIf="voiceError" role="alert">{{ voiceError }}</p>
 </div>

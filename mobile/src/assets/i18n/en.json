@@ -1,5 +1,11 @@
 {
   "voice-button": {
+    "speaking": "Answering…",
+    "preparing": "Getting ready to listen…",
+    "listening": "Listening…",
+    "processing": "Processing your speech…",
+    "autoReady": "Speak — I’ll answer after a pause",
+    "ready": "Press and hold to speak",
     "auto": "Auto"
   },
   "settings": {

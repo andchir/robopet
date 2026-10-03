@@ -1,4 +1,4 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, HostListener, OnDestroy, OnInit } from '@angular/core';
 import { Preferences } from '@capacitor/preferences';
 import { Observable, Subscription, combineLatest, map } from 'rxjs';
 import { VoiceService } from '../../services/voice.service';
@@ -34,24 +34,54 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
 
   private recording = false;
   starting = false;
-  private releasing = false;
+  releasing = false;
+  private stopping: Promise<void> = Promise.resolve();
+  private autoTransition = 0;
+  private autoSetup: Promise<void> = Promise.resolve();
+  private releasePromise: Promise<void> = Promise.resolve();
   private generation = 0;
   private streamRecording = false;
   voiceError = '';
   private pointerId: number | null = null;
 
   onPointerDown(event: PointerEvent): void {
-    if (this.autoMode || this.pointerId !== null || event.button !== 0) return;
+    if (this.autoMode || this.releasing || event.button !== 0 || event.isPrimary === false) return;
+    // A new primary press can recover a hold whose release was lost by the OS.
+    if (this.starting && this.pointerId === null) return;
     event.preventDefault();
     this.pointerId = event.pointerId;
-    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    try {
+      (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    } catch {
+      // Some WebViews reject capture; document listeners still handle release.
+    }
     void this.onPress();
   }
 
+  @HostListener('document:pointerup', ['$event'])
   onPointerUp(event: PointerEvent): void {
     if (this.pointerId !== event.pointerId) return;
     this.pointerId = null;
     void this.onRelease();
+  }
+
+  @HostListener('document:pointercancel', ['$event'])
+  onPointerCancel(event: PointerEvent): void {
+    if (this.pointerId !== event.pointerId) return;
+    this.pointerId = null;
+    this.discardActiveStt();
+  }
+
+  @HostListener('window:blur')
+  onWindowBlur(): void {
+    if (this.autoMode || this.pointerId === null) return;
+    this.pointerId = null;
+    this.discardActiveStt();
+  }
+
+  @HostListener('document:visibilitychange')
+  onVisibilityChange(): void {
+    if (document.hidden) this.onWindowBlur();
   }
 
   private permissionGranted = false;
@@ -125,6 +155,7 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
   }
 
   stopCapture(): void {
+    ++this.autoTransition;
     this.autoMode = false;
     this.pointerId = null;
     this.stopAutoMode();
@@ -138,16 +169,25 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
   // ── Auto mode ─────────────────────────────────────────────────────────────
 
   async onAutoModeChange(): Promise<void> {
-    console.log('[AutoMode] Toggle changed → autoMode =', this.autoMode);
+    const transition = ++this.autoTransition;
+    this.pointerId = null;
+    this.stopAutoMode();
+    if (!this.autoMode) return;
+    await this.pressPromise;
+    await this.releasePromise;
+    await this.stopping;
+    await this.autoSetup.catch(() => {});
+    if (transition !== this.autoTransition) return;
     if (this.autoMode) {
-      try { await this.startAutoMode(); }
-      catch (error) {
+      try {
+        this.autoSetup = this.startAutoMode();
+        await this.autoSetup;
+      } catch (error) {
+        if (transition !== this.autoTransition) return;
         this.voiceError = String(error);
         this.autoMode = false;
         this.stopAutoMode();
       }
-    } else {
-      this.stopAutoMode();
     }
   }
 
@@ -165,8 +205,6 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
     if (!this.autoMode || generation !== this.generation) return;
     await this.vadService.start();
     if (!this.autoMode || generation !== this.generation) { this.vadService.stop(); return; }
-
-    if (!this.currentlySpeaking) await this.onPress();
 
     // Discard STT on every new TTS utterance, even if isSpeaking$ was already
     // true (e.g. thinking phrase immediately followed by LLM response).
@@ -197,20 +235,22 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
         console.log('[AutoMode] Already processing — skipping');
         return;
       }
+      const transition = this.autoTransition;
       this.isProcessingAutoSpeech = true;
       try {
         console.log('[AutoMode] Stopping STT and processing…');
         await this.onRelease();
-        if (this.autoMode && !this.currentlySpeaking) {
+        if (transition === this.autoTransition && this.autoMode && !this.currentlySpeaking) {
           console.log('[AutoMode] Restarting STT for next utterance…');
           await this.onPress();
         }
       } finally {
-        this.isProcessingAutoSpeech = false;
+        if (transition === this.autoTransition) this.isProcessingAutoSpeech = false;
       }
     });
 
     this.autoModeSubs.push(ttsStartSub, speakingTransitionSub, speechEndSub);
+    if (!this.currentlySpeaking) await this.onPress();
     console.log('[AutoMode] Subscriptions set up, autoMode is active');
   }
 
@@ -227,21 +267,24 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
   /** Stop any running STT session without processing its results. */
   private discardActiveStt(): void {
     this.generation++;
+    const wasRecording = this.recording;
     this.recording = false;
     const mode = this.chatService.getSttMode();
     if (mode === 'native') {
       this.nativeSpeechService.stopListening();
+      if (this.nativeListenPromise) this.stopping = this.nativeListenPromise.then(() => {}, () => {});
       this.nativeListenPromise = null;
     } else if (mode === 'capacitor') {
       this.capacitorSpeechService.stopListening();
+      if (this.capacitorListenPromise) this.stopping = this.capacitorListenPromise.then(() => {}, () => {});
       this.capacitorListenPromise = null;
     } else {
       // In auto mode gigaam uses the VAD stream via MediaRecorder; cancel it
       // without waiting for a result. Fall back to VoiceRecorder otherwise.
       if (this.streamRecording) {
         this.voiceService.cancelStreamRecording();
-      } else {
-        this.voiceService.stopRecording().catch(() => {});
+      } else if (wasRecording) {
+        this.stopping = this.voiceService.stopRecording().then(() => {}, () => {});
       }
     }
   }
@@ -255,7 +298,9 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
     const generation = this.generation;
     this.pressPromise = (async () => {
       try {
-        await this.doPress();
+        await this.stopping;
+        if (generation !== this.generation) return;
+        await this.doPress(generation);
         if (generation !== this.generation) this.discardActiveStt();
       } catch (error) { this.voiceError = String(error); }
       finally { this.starting = false; }
@@ -265,7 +310,20 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
 
   async onRelease(): Promise<void> {
     if (this.releasing) return;
+    if (this.starting && !this.autoMode) {
+      // Releasing during permission/model preparation must not start a take
+      // later. If the recorder is already opening, discard it once it opens.
+      this.discardActiveStt();
+      await this.pressPromise;
+      await this.stopping;
+      return;
+    }
     this.releasing = true;
+    this.releasePromise = this.finishRelease();
+    await this.releasePromise;
+  }
+
+  private async finishRelease(): Promise<void> {
     try {
       await this.pressPromise;
       if (!this.recording) return;
@@ -278,7 +336,7 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
     finally { this.releasing = false; }
   }
 
-  private async doPress(): Promise<void> {
+  private async doPress(generation: number): Promise<void> {
     // When not in auto mode, pressing while robot speaks interrupts it.
     if (this.currentlySpeaking && !this.autoMode) {
       this.chatService.notifyInterrupted();
@@ -286,13 +344,10 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
       await new Promise<void>(r => setTimeout(r, 150));
     }
 
-    // Request permission on first interaction. Don't start recording on this
-    // press — the OS dialog steals focus and cancels the touch, so onRelease()
-    // would never fire (or fire at the wrong time), leaving the button stuck.
-    if (!this.permissionGranted) {
-      await this.ensurePermission();
-      return;
+    if (!await this.ensurePermission()) {
+      throw new Error('Нет доступа к микрофону');
     }
+    if (generation !== this.generation) return;
 
     const mode = this.chatService.getSttMode();
     if (this.autoMode && this.currentlySpeaking) return;
@@ -301,7 +356,7 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
     } else if (mode === 'capacitor') {
       await this.onPressCapacitor();
     } else {
-      await this.onPressGigaAm();
+      if (!await this.onPressGigaAm(generation)) return;
     }
     this.recording = true;
   }
@@ -322,8 +377,9 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
 
   // ── GigaAM (ONNX Runtime) mode ──────────────────────────────────────────────────
 
-  private async onPressGigaAm(): Promise<void> {
+  private async onPressGigaAm(generation: number): Promise<boolean> {
     await this.gigaamService.initialize(this.chatService.getLanguage());
+    if (generation !== this.generation) return false;
     // Clear the visualization at the start of a fresh utterance — words for
     // this take will be streamed once GigaAm finishes transcribing them.
     this.speechStream.startSession();
@@ -337,6 +393,7 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
     } else {
       await this.voiceService.startRecording();
     }
+    return true;
   }
 
   private async onReleaseGigaAm(): Promise<void> {
@@ -383,19 +440,22 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
 
   private async onPressNative(): Promise<void> {
     if (!this.nativeSpeechService.isSupported()) {
-      console.error('[VoiceButton] Web Speech API not supported on this device');
-      return;
+      throw new Error('Распознавание речи недоступно на этом устройстве');
     }
 
     const lang = this.chatService.getLanguage();
     const bcp47 = lang === 'ru' ? 'ru-RU' : 'en-US';
 
     console.log('[VoiceButton] Starting native recognition, lang=', bcp47);
-    this.nativeListenPromise = this.nativeSpeechService.startListening(bcp47);
+    this.nativeListenPromise = this.nativeSpeechService.startListening(bcp47).catch(error => {
+      this.voiceError = String(error);
+      return '';
+    });
   }
 
   private async onReleaseNative(): Promise<void> {
     if (!this.nativeListenPromise) return;
+    const generation = this.generation;
 
     this.nativeSpeechService.stopListening();
 
@@ -414,6 +474,7 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
       return;
     }
 
+    if (generation !== this.generation) return;
     console.log(`[VoiceButton] Native result: "${text}"`);
     this.chatService.processMessage(text);
   }
@@ -423,19 +484,22 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
   private async onPressCapacitor(): Promise<void> {
     const available = await this.capacitorSpeechService.isAvailable();
     if (!available) {
-      console.error('[VoiceButton] Capacitor SpeechRecognition not available on this device');
-      return;
+      throw new Error('Распознавание речи недоступно на этом устройстве');
     }
 
     const lang = this.chatService.getLanguage();
     const bcp47 = lang === 'ru' ? 'ru-RU' : 'en-US';
 
     console.log('[VoiceButton] Starting Capacitor recognition, lang=', bcp47);
-    this.capacitorListenPromise = this.capacitorSpeechService.startListening(bcp47);
+    this.capacitorListenPromise = this.capacitorSpeechService.startListening(bcp47).catch(error => {
+      this.voiceError = String(error);
+      return '';
+    });
   }
 
   private async onReleaseCapacitor(): Promise<void> {
     if (!this.capacitorListenPromise) return;
+    const generation = this.generation;
 
     this.capacitorSpeechService.stopListening();
 
@@ -454,6 +518,7 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
       return;
     }
 
+    if (generation !== this.generation) return;
     console.log(`[VoiceButton] Capacitor result: "${text}"`);
     this.chatService.processMessage(text);
   }
