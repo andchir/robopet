@@ -19,7 +19,7 @@
       <ion-segment
         [(ngModel)]="sttMode"
         (ionChange)="onModeChange()"
-        [disabled]="isListening || isProcessing"
+        [disabled]="isListening || isProcessing || isStarting"
         mode="ios">
         <ion-segment-button value="gigaam">
           <ion-label>{{ 'speech-test.mode-gigaam' | transloco }}</ion-label>
@@ -38,16 +38,16 @@
         type="button"
         class="rec-btn"
         [class.active]="isListening"
-        [class.processing]="isProcessing"
-        [disabled]="isProcessing"
+        [class.processing]="isProcessing || isStarting"
+        [disabled]="isProcessing || isStarting"
         [attr.aria-label]="(isListening ? 'speech-test.stop' : 'speech-test.start') | transloco"
         (click)="toggle()">
         <span class="rec-pulse" *ngIf="isListening"></span>
         <ion-icon
-          *ngIf="!isProcessing"
+          *ngIf="!isProcessing && !isStarting"
           [name]="isListening ? 'stop' : 'mic'">
         </ion-icon>
-        <ion-spinner *ngIf="isProcessing" name="crescent"></ion-spinner>
+        <ion-spinner *ngIf="isProcessing || isStarting" name="crescent"></ion-spinner>
       </button>
     </div>
 
@@ -58,8 +58,8 @@
     <div class="word-stage">
       <div
         class="stage-hint"
-        *ngIf="!isListening && !isProcessing && !currentWord && transcript.length === 0">
-        {{ 'speech-test.hint' | transloco }}
+        *ngIf="!isListening && !isProcessing && !isStarting && !currentWord && transcript.length === 0">
+        {{ (sttMode === 'gigaam' ? 'speech-test.hint-gigaam' : 'speech-test.hint') | transloco }}
       </div>
 
       <span

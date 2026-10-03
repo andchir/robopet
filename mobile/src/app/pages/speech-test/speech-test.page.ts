@@ -1,4 +1,4 @@
-import { ChangeDetectorRef, Component, ElementRef, NgZone, OnDestroy, OnInit, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, ElementRef, NgZone, OnDestroy, ViewChild } from '@angular/core';
 import { Preferences } from '@capacitor/preferences';
 import { PluginListenerHandle } from '@capacitor/core';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
@@ -48,11 +48,14 @@ function toLangCode(bcp47: string): string {
   styleUrls: ['./speech-test.page.scss'],
   standalone: false,
 })
-export class SpeechTestPage implements OnInit, OnDestroy {
+export class SpeechTestPage implements OnDestroy {
   sttMode: SttMode = 'gigaam';
   ttsLang = 'en-US';
 
   isListening = false;
+  isStarting = false;
+  private session = 0;
+  private gigaamRecording = false;
   isProcessing = false;
   /** i18n key for the current status banner, or empty string. */
   statusKey = '';
@@ -107,7 +110,7 @@ export class SpeechTestPage implements OnInit, OnDestroy {
     private cd: ChangeDetectorRef,
   ) {}
 
-  async ngOnInit(): Promise<void> {
+  async ionViewWillEnter(): Promise<void> {
     const sttMode = normalizeSttMode((await Preferences.get({ key: 'sttMode' })).value);
     if (sttMode) this.sttMode = sttMode;
 
@@ -117,6 +120,11 @@ export class SpeechTestPage implements OnInit, OnDestroy {
     if (this.sttMode === 'gigaam') {
       this.gigaamService.preload();
     }
+  }
+
+  ionViewWillLeave(): void {
+    this.clearIdleTimer();
+    void this.stop(true);
   }
 
   ngOnDestroy(): void {
@@ -135,7 +143,7 @@ export class SpeechTestPage implements OnInit, OnDestroy {
   // ── Public actions ────────────────────────────────────────────────────────
 
   async onModeChange(): Promise<void> {
-    if (this.isListening || this.isProcessing) {
+    if (this.isListening || this.isProcessing || this.isStarting) {
       await this.stop(true);
     }
     this.permissionGranted = false;
@@ -147,6 +155,7 @@ export class SpeechTestPage implements OnInit, OnDestroy {
   }
 
   async toggle(): Promise<void> {
+    if (this.isStarting) return;
     if (this.isListening) {
       await this.stop(false);
     } else if (!this.isProcessing) {
@@ -229,15 +238,18 @@ export class SpeechTestPage implements OnInit, OnDestroy {
    * FLIP animations don't race when words arrive rapidly.
    */
   private enqueue(task: () => Promise<void>): void {
+    const session = this.session;
     this.commitChain = this.commitChain
-      .then(task)
+      .then(() => session === this.session ? task() : undefined)
       .catch(err => console.error('[SpeechTest] queue task failed', err));
   }
 
   private async processIncomingWord(text: string): Promise<void> {
     // Drop the existing spotlight (if any) into the transcript first, then
     // present the new word as the new spotlight.
+    const session = this.session;
     await this.commitCurrentToTranscript();
+    if (session !== this.session) return;
 
     this.zone.run(() => {
       this.currentWord = {
@@ -257,6 +269,7 @@ export class SpeechTestPage implements OnInit, OnDestroy {
    * the transcript with a FLIP morph. Safe to call when no spotlight exists.
    */
   private async commitCurrentToTranscript(): Promise<void> {
+    const session = this.session;
     this.clearIdleTimer();
 
     const previous = this.currentWord;
@@ -291,7 +304,7 @@ export class SpeechTestPage implements OnInit, OnDestroy {
     }
 
     // Phase 2 — FLIP morph from the dipped position into the inline transcript.
-    if (this.currentWord !== previous) return;
+    if (session !== this.session || this.currentWord !== previous) return;
 
     const fromRect = (document.querySelector('.spotlight') as HTMLElement | null)
       ?.getBoundingClientRect() ?? null;
@@ -420,51 +433,52 @@ export class SpeechTestPage implements OnInit, OnDestroy {
   // ── Lifecycle: start / stop ───────────────────────────────────────────────
 
   private async start(): Promise<void> {
+    const session = ++this.session;
+    this.isStarting = true;
     this.resetStage();
-    this.statusKey = '';
-
-    if (!(await this.ensurePermission())) {
-      this.statusKey = 'speech-test.status-permission';
-      return;
-    }
-
-    this.isListening = true;
-    this.log('started', { mode: this.modeLabel(this.sttMode), lang: this.ttsLang }, 'success');
+    this.statusKey = 'speech-test.status-preparing';
     try {
-      if (this.sttMode === 'native') {
-        await this.startNative();
-      } else if (this.sttMode === 'capacitor') {
-        await this.startCapacitor();
-      } else {
-        await this.startGigaAm();
+      await this.voiceService.stopSpeaking();
+      if (!(await this.ensurePermission())) {
+        if (session === this.session) this.statusKey = 'speech-test.status-permission';
+        return;
       }
+      if (session !== this.session) return;
+      if (this.sttMode === 'gigaam') {
+        await this.startGigaAm(session);
+        if (session !== this.session) return;
+        this.isListening = true;
+        this.statusKey = 'speech-test.status-recording';
+      } else {
+        this.isListening = true;
+        if (this.sttMode === 'native') await this.startNative();
+        else await this.startCapacitor();
+        if (session !== this.session) {this.stopNative(); await this.stopCapacitor(); return;}
+        this.statusKey = '';
+      }
+      this.log('started', {mode: this.modeLabel(this.sttMode), lang: this.ttsLang}, 'success');
     } catch (err) {
-      console.error('[SpeechTest] start failed', err);
+      if (session !== this.session) return;
       this.isListening = false;
       this.statusKey = 'speech-test.status-error';
-      this.log('error', { message: this.errorMessage(err) }, 'error');
-    }
+      this.log('error', {message: this.errorMessage(err)}, 'error');
+    } finally {this.isStarting = false;}
   }
 
   private async stop(silent: boolean): Promise<void> {
-    if (!this.isListening && !this.isProcessing) return;
-
+    if (silent) {++this.session; this.clearIdleTimer(); this.statusKey = '';}
+    if (!silent && this.isProcessing) return;
     try {
-      if (this.sttMode === 'native') {
-        this.stopNative();
-      } else if (this.sttMode === 'capacitor') {
-        await this.stopCapacitor();
-      } else {
-        await this.stopGigaAm();
-      }
+      if (this.sttMode === 'native') this.stopNative();
+      else if (this.sttMode === 'capacitor') await this.stopCapacitor();
+      else await this.stopGigaAm(silent);
       if (!silent) this.log('stopped', {}, 'info');
     } catch (err) {
-      console.error('[SpeechTest] stop failed', err);
       if (!silent) {
         this.statusKey = 'speech-test.status-error';
-        this.log('error', { message: this.errorMessage(err) }, 'error');
+        this.log('error', {message: this.errorMessage(err)}, 'error');
       }
-    }
+    } finally {this.isListening = false;}
   }
 
   private errorMessage(err: unknown): string {
@@ -706,53 +720,49 @@ export class SpeechTestPage implements OnInit, OnDestroy {
 
   // ── GigaAm (record then stream words) ────────────────────────────────────
 
-  private async startGigaAm(): Promise<void> {
+  private async startGigaAm(session: number): Promise<void> {
     await this.gigaamService.initialize(toLangCode(this.ttsLang));
+    if (session !== this.session) return;
     await this.voiceService.startRecording();
-  }
-
-  private async stopGigaAm(): Promise<void> {
-    let audioBase64 = '';
-    try {
-      audioBase64 = await this.voiceService.stopRecording();
-    } catch (err) {
-      this.isListening = false;
-      this.log('error', { message: this.errorMessage(err) }, 'error');
+    if (session !== this.session) {
+      await this.voiceService.stopRecording();
       return;
     }
+    this.gigaamRecording = true;
+  }
+
+  private async stopGigaAm(silent: boolean): Promise<void> {
+    if (!this.gigaamRecording) return;
+    this.gigaamRecording = false;
     this.isListening = false;
-
-    if (!audioBase64) {
-      this.log('no-speech', {}, 'warn');
-      return;
-    }
-
     this.isProcessing = true;
-    this.statusKey = 'speech-test.status-processing';
-    this.log('transcribing', {}, 'info');
+    const session = this.session;
     try {
-      const langCode = toLangCode(this.ttsLang);
-      const text = await this.gigaamService.transcribe(audioBase64, langCode);
-      this.statusKey = '';
-      const trimmed = text.trim();
-      if (trimmed) {
-        this.log('transcript', { text: trimmed }, 'success');
-      } else {
+      const audioBase64 = await this.voiceService.stopRecording();
+      if (silent || session !== this.session) return;
+      if (!audioBase64) {
+        this.statusKey = 'speech-test.status-no-speech';
         this.log('no-speech', {}, 'warn');
+        return;
       }
-      await this.streamWordsWithDelay(text);
+      this.statusKey = 'speech-test.status-processing';
+      this.log('transcribing', {}, 'info');
+      const text = await this.gigaamService.transcribe(audioBase64, toLangCode(this.ttsLang));
+      if (session !== this.session) return;
+      this.statusKey = text.trim() ? '' : 'speech-test.status-no-speech';
+      this.log(text.trim() ? 'transcript' : 'no-speech', text.trim() ? {text: text.trim()} : {}, text.trim() ? 'success' : 'warn');
+      await this.streamWordsWithDelay(text, session);
     } catch (err) {
-      console.error('[SpeechTest] GigaAm transcription failed', err);
+      if (silent || session !== this.session) return;
       this.statusKey = 'speech-test.status-error';
-      this.log('error', { message: this.errorMessage(err) }, 'error');
-    } finally {
-      this.isProcessing = false;
-    }
+      this.log('error', {message: this.errorMessage(err)}, 'error');
+    } finally {this.isProcessing = false;}
   }
 
-  private async streamWordsWithDelay(text: string): Promise<void> {
+  private async streamWordsWithDelay(text: string, session: number): Promise<void> {
     const words = text.trim().split(/\s+/).filter(Boolean);
     for (const word of words) {
+      if (session !== this.session) return;
       this.addWord(word);
       await new Promise(r => setTimeout(r, 380));
     }

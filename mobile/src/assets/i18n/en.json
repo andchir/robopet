@@ -56,7 +56,11 @@
       "transcript": "Transcribed: \"{{text}}\"",
       "no-speech": "No speech detected",
       "error": "Error: {{message}}"
-    }
+    },
+    "status-preparing": "Preparing microphone and model…",
+    "status-recording": "Recording. Press Stop to recognize your speech.",
+    "status-no-speech": "No speech detected. Try recording your phrase again.",
+    "hint-gigaam": "Tap the microphone, wait for recording to start, and say a phrase. Then press Stop — GigaAM will transcribe the recording."
   },
   "gigaam": {
     "description": "Download the speech model for your selected language once to use it offline.",
