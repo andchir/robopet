@@ -11,7 +11,7 @@ A mobile robot-pet companion app. The phone displays an animated robot face that
 
 - Node.js 20+, npm 10+
 - Python 3.11+
-- An OpenAI-compatible API key
+- An OpenAI-compatible API key (optional; configure it in the app for online AI responses)
 
 ## Running in Development
 
@@ -24,7 +24,7 @@ source .venv/bin/activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# edit .env — set OPENAI_API_KEY (required)
+# edit .env if you need to change backend server or robot defaults
 
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
@@ -39,7 +39,10 @@ npm install
 ionic serve
 ```
 
-Opens at `http://localhost:8100`. Go to **Settings** and enter the backend IP/port.
+Opens at `http://localhost:8100`. For online AI responses, open **Settings → AI assistant**
+and enter the API base URL, API key, and model. These settings are saved on the device
+and used directly by the frontend. Backend `.env` settings do not configure API access;
+the optional backend provides local keyword-based replies and needs no API key.
 
 To run on a physical device:
 
