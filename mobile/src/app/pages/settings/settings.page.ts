@@ -1,6 +1,9 @@
+import { SupertonicService } from '../../services/supertonic.service';
+import { VoiceService } from '../../services/voice.service';
 import { GigaAmService } from '../../services/gigaam.service';
 import { Component, OnInit } from '@angular/core';
 import { Preferences } from '@capacitor/preferences';
+import { firstValueFrom } from 'rxjs';
 import { ModalController, ToastController } from '@ionic/angular';
 import { TranslocoService } from '@jsverse/transloco';
 import { normalizeSttMode, ChatService, LlmSettings, SttMode } from '../../services/chat.service';
@@ -21,6 +24,10 @@ function toLangCode(bcp47: string): string {
 export class SettingsPage implements OnInit {
   cameraPosition: 'front' | 'rear' = 'front';
   ttsLang = 'en-US';
+  ttsEngine = 'supertonic';
+  ttsVoice = 'M1';
+  voices = ['M1','M2','M3','M4','M5','F1','F2','F3','F4','F5'];
+  previewing = false;
   robotName = 'RoboPet';
   sttMode: SttMode = 'gigaam';
   llmBaseUrl = 'https://api.openai.com/v1';
@@ -28,7 +35,7 @@ export class SettingsPage implements OnInit {
   llmModelName = 'gpt-4o-mini';
   deviceId = '';
 
-  constructor(public gigaam: GigaAmService,
+  constructor(public gigaam: GigaAmService, public supertonic: SupertonicService, private voice: VoiceService,
     private chatService: ChatService,
     private toastController: ToastController,
     private transloco: TranslocoService,
@@ -36,6 +43,9 @@ export class SettingsPage implements OnInit {
   ) {}
 
   async ngOnInit(): Promise<void> {
+    this.ttsEngine = (await Preferences.get({key: 'ttsEngine'})).value === 'system' ? 'system' : 'supertonic';
+    const savedVoice = (await Preferences.get({key: 'ttsVoice'})).value;
+    if (savedVoice && this.voices.includes(savedVoice)) this.ttsVoice = savedVoice;
     const camera = await Preferences.get({ key: 'cameraPosition' });
     const lang = await Preferences.get({ key: 'ttsLang' });
     const name = await Preferences.get({ key: 'robotName' });
@@ -59,7 +69,20 @@ export class SettingsPage implements OnInit {
     if (this.sttMode === 'gigaam') await this.gigaam.checkLanguage(this.ttsLang);
   }
 
+  async previewVoice(): Promise<void> {
+    if (this.previewing) {await this.voice.stopSpeaking(); return;}
+    this.previewing = true;
+    try {await this.voice.speak(this.ttsLang.startsWith('ru')
+      ? 'Привет! Я Робопет. Вот так будет звучать мой голос.'
+      : 'Hello! I am RoboPet. This is how my voice will sound.', this.ttsLang, this.ttsEngine, this.ttsVoice);
+    } finally {this.previewing = false;}
+  }
+  ionViewWillLeave(): void {if (this.previewing) void this.voice.stopSpeaking();}
+
   async save(): Promise<void> {
+    await this.voice.stopSpeaking();
+    await Preferences.set({key: 'ttsEngine', value: this.ttsEngine});
+    await Preferences.set({key: 'ttsVoice', value: this.ttsVoice});
     await Preferences.set({ key: 'cameraPosition', value: this.cameraPosition });
     await Preferences.set({ key: 'ttsLang', value: this.ttsLang });
     await Preferences.set({ key: 'robotName', value: this.robotName });
@@ -82,7 +105,10 @@ export class SettingsPage implements OnInit {
     };
     this.chatService.setLlmSettings(llmSettings);
 
-    const message = this.transloco.translate('settings.save-success');
+    // The newly selected language may still be loading on its first use.
+    const message = await firstValueFrom(
+      this.transloco.selectTranslate('settings.save-success', {}, langCode),
+    );
     const toast = await this.toastController.create({
       message,
       duration: 2000,

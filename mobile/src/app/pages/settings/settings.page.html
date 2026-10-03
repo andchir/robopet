@@ -53,6 +53,22 @@
     </ion-item>
   </ion-list>
 
+  <ion-list>
+    <ion-item>
+      <ion-select [label]="'supertonic.engine' | transloco" labelPlacement="stacked" [(ngModel)]="ttsEngine" [disabled]="previewing">
+        <ion-select-option value="supertonic">Supertonic 3</ion-select-option>
+        <ion-select-option value="system">{{ 'supertonic.system' | transloco }}</ion-select-option>
+      </ion-select>
+    </ion-item>
+    <ion-item *ngIf="ttsEngine === 'supertonic'">
+      <ion-select [label]="'supertonic.voice' | transloco" labelPlacement="stacked" [(ngModel)]="ttsVoice" [disabled]="previewing">
+        <ion-select-option *ngFor="let v of voices" [value]="v">{{ ('supertonic.' + (v[0] === 'M' ? 'male' : 'female')) | transloco }} {{ v[1] }}</ion-select-option>
+      </ion-select>
+    </ion-item>
+  </ion-list>
+  <ion-button (click)="previewVoice()">{{ (previewing ? 'supertonic.stop' : 'supertonic.preview') | transloco }}</ion-button>
+  <ion-button *ngIf="ttsEngine === 'supertonic'" fill="outline" (click)="supertonic.openModels()">{{ 'supertonic.manage' | transloco }}</ion-button>
+
   <ion-list-header>
     <ion-label>{{ 'settings.llm-section' | transloco }}</ion-label>
   </ion-list-header>

@@ -1,3 +1,4 @@
+import { SupertonicService } from './services/supertonic.service';
 import { normalizeSttMode } from './services/chat.service';
 import { GigaAmService } from './services/gigaam.service';
 import { Component, OnInit } from '@angular/core';
@@ -11,7 +12,7 @@ import { TranslocoService } from '@jsverse/transloco';
   standalone: false,
 })
 export class AppComponent implements OnInit {
-  constructor(private transloco: TranslocoService, public gigaam: GigaAmService) {}
+  constructor(private transloco: TranslocoService, public gigaam: GigaAmService, public supertonic: SupertonicService) {}
 
   async ngOnInit(): Promise<void> {
     const { value: deviceId } = await Preferences.get({ key: 'deviceId' });

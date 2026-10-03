@@ -19,4 +19,21 @@
       </ion-content>
     </ng-template>
   </ion-modal>
+  <ion-modal [isOpen]="supertonic.dialogOpen && !gigaam.dialogOpen" [backdropDismiss]="!supertonic.downloading" [canDismiss]="!supertonic.downloading" (didDismiss)="supertonic.dialogOpen = false">
+    <ng-template>
+      <ion-header><ion-toolbar><ion-title>Supertonic 3</ion-title></ion-toolbar></ion-header>
+      <ion-content class="ion-padding">
+        <p>{{ 'supertonic.description' | transloco }}</p>
+        <p *ngIf="supertonic.installed">{{ 'gigaam.ready' | transloco }}</p>
+        <div *ngIf="supertonic.downloading" aria-live="polite">
+          <ion-progress-bar [value]="supertonic.progress"></ion-progress-bar>
+          <p>{{ supertonic.progress * 100 | number:'1.0-0' }}%</p>
+          <ion-button (click)="supertonic.cancelDownload()">{{ 'gigaam.cancel' | transloco }}</ion-button>
+        </div>
+        <p *ngIf="supertonic.error" role="alert">{{ supertonic.error | transloco }}</p>
+        <ion-button *ngIf="!supertonic.downloading" [disabled]="supertonic.installed" (click)="supertonic.download()">{{ 'gigaam.download' | transloco }}</ion-button>
+        <ion-button fill="clear" [disabled]="supertonic.downloading" (click)="supertonic.dialogOpen = false">{{ 'gigaam.close' | transloco }}</ion-button>
+      </ion-content>
+    </ng-template>
+  </ion-modal>
 </ion-app>

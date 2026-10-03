@@ -1,3 +1,5 @@
+import { SupertonicService } from './supertonic.service';
+import { Preferences } from '@capacitor/preferences';
 import { Capacitor } from '@capacitor/core';
 import { Injectable } from '@angular/core';
 import { VoiceRecorder } from 'capacitor-voice-recorder';
@@ -10,6 +12,15 @@ export class VoiceService {
   private readonly recording$ = new BehaviorSubject<boolean>(false);
   private readonly ttsStart$ = new Subject<void>();
   private speakGeneration = 0;
+  private audioContext?: AudioContext;
+  private source?: AudioBufferSourceNode;
+  private finishPlayback?: () => void;
+  constructor(private supertonic: SupertonicService) {}
+  private stopPlayback(): void {
+    this.source?.stop(); this.source = undefined;
+    this.finishPlayback?.(); this.finishPlayback = undefined;
+  }
+
 
   private mediaRecorder: MediaRecorder | null = null;
   private recordChunks: Blob[] = [];
@@ -53,52 +64,48 @@ export class VoiceService {
     return audio;
   }
 
-  async speak(text: string, lang = 'ru-RU'): Promise<void> {
+  async speak(text: string, lang = 'ru-RU', engineOverride?: string, voiceOverride?: string): Promise<void> {
     const generation = ++this.speakGeneration;
-    console.log(`[Voice] TTS start  gen=${generation}  lang=${lang}  text="${text.slice(0, 80)}${text.length > 80 ? '…' : ''}"`);
-
-    // Notify listeners that a new TTS utterance is starting (fires before
-    // isSpeaking$ changes, so auto-mode can discard any orphaned STT session
-    // even when isSpeaking$ was already true from the previous utterance).
+    this.stopPlayback();
+    this.supertonic.cancelSynthesis();
     this.ttsStart$.next();
-
-    // Stop any currently playing TTS before starting a new one
-    try { await TextToSpeech.stop(); } catch { /* ignore */ }
-
-    // Another speak() was called while we were stopping — bail out
-    if (generation !== this.speakGeneration) return;
-
     this.speaking$.next(true);
-
-    // Safety timeout: ~90 ms per character + 2 s buffer, minimum 3 s
-    const safetyMs = Math.max(text.length * 90, 3000) + 2000;
-    const safetyTimer = setTimeout(() => {
-      if (generation === this.speakGeneration) {
-        console.warn('[Voice] TTS safety timeout fired — forcing isSpeaking=false');
-        this.speaking$.next(false);
-      }
-    }, safetyMs);
+    // Resume during the user's gesture, before asynchronous model loading.
+    this.audioContext ??= new AudioContext();
+    const resumed = this.audioContext.resume().catch(() => undefined);
     try {
-      await TextToSpeech.speak({ text, lang, rate: 1.0 });
-      console.log(`[Voice] TTS finished  gen=${generation}`);
-    } catch (err: unknown) {
-      const errObj = err as { error?: string };
-      if (errObj?.error !== 'interrupted') {
-        console.error('[Voice] TTS error:', err);
+      await TextToSpeech.stop();
+      const engine = engineOverride ?? (await Preferences.get({key: 'ttsEngine'})).value ?? 'supertonic';
+      const voice = voiceOverride ?? (await Preferences.get({key: 'ttsVoice'})).value ?? 'M1';
+      if (generation !== this.speakGeneration) return;
+      if (engine === 'system') {
+        await TextToSpeech.speak({text, lang, rate: 1.0});
+      } else {
+        const result = await this.supertonic.synthesize(text, lang, voice);
+        if (!result || generation !== this.speakGeneration) return;
+        await resumed;
+        if (generation !== this.speakGeneration) return;
+        const buffer = this.audioContext.createBuffer(1, result.audio.length, result.sampleRate);
+        buffer.copyToChannel(new Float32Array(result.audio), 0);
+        const source = this.audioContext.createBufferSource();
+        source.buffer = buffer; source.connect(this.audioContext.destination); this.source = source;
+        await new Promise<void>(resolve => {
+          this.finishPlayback = resolve;
+          source.onended = () => {source.disconnect(); resolve();}; source.start();
+        });
       }
+    } catch (error) {
+      if ((error as Error).message !== 'CANCELLED') console.error('[Voice] TTS error', error);
     } finally {
-      clearTimeout(safetyTimer);
-      // Only mark as done if we are still the latest speak() call
-      if (generation === this.speakGeneration) {
-        this.speaking$.next(false);
-      }
+      if (generation === this.speakGeneration) {this.source = undefined; this.finishPlayback = undefined; this.speaking$.next(false);}
     }
   }
 
   async stopSpeaking(): Promise<void> {
-    console.log('[Voice] TTS stopped manually');
-    await TextToSpeech.stop();
+    ++this.speakGeneration;
+    this.stopPlayback(); this.supertonic.cancelSynthesis();
     this.speaking$.next(false);
+    try {await TextToSpeech.stop();} catch { /* Already stopped. */ }
   }
 
   /**

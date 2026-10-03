@@ -68,5 +68,18 @@
     "manage": "Offline speech models",
     "language-ru": "Language: Russian",
     "language-en": "Language: English"
+  },
+  "supertonic": {
+    "engine": "AI voice",
+    "system": "System voice",
+    "voice": "Voice preset",
+    "male": "Male",
+    "female": "Female",
+    "stop": "Stop",
+    "preview": "Listen",
+    "manage": "Download / check Supertonic 3",
+    "description": "Offline speech in Russian and English. Shared download: about 401 MB, 10 voices. Download starts only with the button. Once ready, close this window and press Listen.",
+    "failed": "Download failed. Check your connection and free storage, then retry.",
+    "synthesis-failed": "Speech synthesis failed. Try again or select the system voice."
   }
 }
