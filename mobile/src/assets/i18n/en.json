@@ -61,7 +61,7 @@
   "gigaam": {
     "description": "Download the speech model for your selected language once to use it offline.",
     "size": "Model size: about 225 MB.",
-    "ready": "Model downloaded and available offline.",
+    "ready": "Model downloaded and ready to use offline.",
     "cancel": "Cancel",
     "download": "Download model",
     "close": "Close",

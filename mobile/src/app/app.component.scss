@@ -61,3 +61,23 @@
 @media (max-width: 400px) {
   .model-actions { grid-template-columns: 1fr; }
 }
+
+.model-ready {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0;
+  padding: 16px;
+  border: 1px solid rgba(var(--ion-color-success-rgb), 0.4);
+  border-radius: 12px;
+  background: rgba(var(--ion-color-success-rgb), 0.12);
+  color: var(--ion-text-color);
+  font-weight: 600;
+  line-height: 1.5;
+
+  ion-icon {
+    flex: 0 0 28px;
+    font-size: 28px;
+    color: var(--ion-color-success-shade);
+  }
+}

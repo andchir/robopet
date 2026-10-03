@@ -7,7 +7,10 @@
         <p>{{ 'gigaam.description' | transloco }}</p>
         <p>{{ ('gigaam.language-' + gigaam.selectedLanguage) | transloco }}</p>
         <p>{{ 'gigaam.size' | transloco }}</p>
-        <p *ngIf="gigaam.installed[gigaam.selectedLanguage]">{{ 'gigaam.ready' | transloco }}</p>
+        <div class="model-ready" *ngIf="gigaam.installed[gigaam.selectedLanguage]" role="status">
+          <ion-icon name="checkmark-circle" aria-hidden="true"></ion-icon>
+          <span>{{ 'gigaam.ready' | transloco }}</span>
+        </div>
         <div class="model-progress" *ngIf="gigaam.downloading" aria-live="polite">
           <ion-progress-bar [value]="gigaam.progress"></ion-progress-bar>
           <p>{{ gigaam.progress * 100 | number:'1.0-0' }}%</p>
@@ -28,7 +31,10 @@
       <ion-header><ion-toolbar><ion-title>Supertonic 3</ion-title></ion-toolbar></ion-header>
       <ion-content class="ion-padding model-content">
         <p>{{ 'supertonic.description' | transloco }}</p>
-        <p *ngIf="supertonic.installed">{{ 'gigaam.ready' | transloco }}</p>
+        <div class="model-ready" *ngIf="supertonic.installed" role="status">
+          <ion-icon name="checkmark-circle" aria-hidden="true"></ion-icon>
+          <span>{{ 'gigaam.ready' | transloco }}</span>
+        </div>
         <div class="model-progress" *ngIf="supertonic.downloading" aria-live="polite">
           <ion-progress-bar [value]="supertonic.progress"></ion-progress-bar>
           <p>{{ supertonic.progress * 100 | number:'1.0-0' }}%</p>
