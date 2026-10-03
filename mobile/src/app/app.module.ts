@@ -4,7 +4,7 @@ import { HttpClient, provideHttpClient } from '@angular/common/http';
 import { RouteReuseStrategy } from '@angular/router';
 
 import { IonicModule, IonicRouteStrategy } from '@ionic/angular';
-import { Translation, TranslocoLoader, provideTransloco, provideTranslocoLoader } from '@jsverse/transloco';
+import { TranslocoModule, Translation, TranslocoLoader, provideTransloco, provideTranslocoLoader } from '@jsverse/transloco';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 
@@ -22,7 +22,7 @@ export class TranslocoHttpLoader implements TranslocoLoader {
 
 @NgModule({
   declarations: [AppComponent],
-  imports: [BrowserModule, IonicModule.forRoot(), AppRoutingModule],
+  imports: [TranslocoModule, BrowserModule, IonicModule.forRoot(), AppRoutingModule],
   providers: [
     { provide: RouteReuseStrategy, useClass: IonicRouteStrategy },
     provideHttpClient(),

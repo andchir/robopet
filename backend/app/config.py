@@ -16,7 +16,6 @@ class Settings(BaseSettings):
     openai_base_url: str = "https://api.openai.com/v1"
     openai_model: str = "gpt-4o-mini"
 
-    whisper_model: str = "base"
     yolo_model: str = "yolov8n.pt"
 
     robot_name: str = "RoboPet"

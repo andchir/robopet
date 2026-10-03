@@ -1,3 +1,23 @@
 <ion-app>
   <ion-router-outlet></ion-router-outlet>
+  <ion-modal [isOpen]="gigaam.dialogOpen" [backdropDismiss]="!gigaam.downloading" [canDismiss]="!gigaam.downloading" (didDismiss)="gigaam.dialogOpen = false">
+    <ng-template>
+      <ion-header><ion-toolbar><ion-title>GigaAM</ion-title></ion-toolbar></ion-header>
+      <ion-content class="ion-padding">
+        <p>{{ 'gigaam.description' | transloco }}</p>
+        <ion-button [disabled]="gigaam.downloading" (click)="gigaam.selectedLanguage = 'ru'" [fill]="gigaam.selectedLanguage === 'ru' ? 'solid' : 'outline'">Русский · v3</ion-button>
+        <ion-button [disabled]="gigaam.downloading" (click)="gigaam.selectedLanguage = 'en'" [fill]="gigaam.selectedLanguage === 'en' ? 'solid' : 'outline'">English · Multilingual</ion-button>
+        <p>{{ 'gigaam.size' | transloco }}</p>
+        <p *ngIf="gigaam.installed[gigaam.selectedLanguage]">{{ 'gigaam.ready' | transloco }}</p>
+        <div *ngIf="gigaam.downloading" aria-live="polite">
+          <ion-progress-bar [value]="gigaam.progress"></ion-progress-bar>
+          <p>{{ gigaam.progress * 100 | number:'1.0-0' }}%</p>
+          <ion-button (click)="gigaam.cancelDownload()">{{ 'gigaam.cancel' | transloco }}</ion-button>
+        </div>
+        <p *ngIf="gigaam.error" role="alert">{{ gigaam.error }}</p>
+        <ion-button *ngIf="!gigaam.downloading" [disabled]="gigaam.installed[gigaam.selectedLanguage]" (click)="gigaam.download()">{{ 'gigaam.download' | transloco }}</ion-button>
+        <ion-button fill="clear" [disabled]="gigaam.downloading" (click)="gigaam.dialogOpen = false">{{ 'gigaam.close' | transloco }}</ion-button>
+      </ion-content>
+    </ng-template>
+  </ion-modal>
 </ion-app>

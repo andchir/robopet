@@ -9,7 +9,12 @@
     "build": "ng build --configuration production",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "lint": "ng lint"
+    "lint": "ng lint",
+    "prepare:stt": "node scripts/prepare-stt.mjs",
+    "prestart": "npm run prepare:stt",
+    "prebuild": "npm run prepare:stt",
+    "test:stt": "node --test scripts/gigaam.test.mjs",
+    "capacitor:sync:after": "node scripts/android-permissions.mjs"
   },
   "private": true,
   "dependencies": {
@@ -35,7 +40,6 @@
     "@ionic/angular": "^8.0.0",
     "@jsverse/transloco": "^8.2.1",
     "@types/qrcode": "^1.5.6",
-    "@xenova/transformers": "^2.17.2",
     "capacitor-voice-recorder": "^7.0.6",
     "ionicons": "^7.0.0",
     "jsqr": "^1.4.0",
@@ -43,7 +47,8 @@
     "rxjs": "~7.8.0",
     "socket.io-client": "^4.8.3",
     "tslib": "^2.3.0",
-    "zone.js": "~0.15.0"
+    "zone.js": "~0.15.0",
+    "onnxruntime-web": "1.22.0"
   },
   "devDependencies": {
     "@angular-devkit/build-angular": "^20.0.0",

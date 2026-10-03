@@ -11,7 +11,7 @@
     "camera-front": "Front",
     "camera-rear": "Rear",
     "stt-mode": "Voice recognition mode",
-    "stt-mode-whisper": "Whisper AI (offline)",
+    "stt-mode-gigaam": "GigaAM (offline · RU / EN)",
     "stt-mode-native": "Google Speech (Android)",
     "stt-mode-capacitor": "Native SpeechRecognizer (Android)",
     "llm-section": "AI Assistant (OpenAI-compatible API)",
@@ -31,7 +31,7 @@
   },
   "speech-test": {
     "title": "Speech recognition",
-    "mode-whisper": "Whisper",
+    "mode-gigaam": "GigaAM",
     "mode-native": "Web Speech",
     "mode-capacitor": "Native",
     "hint": "Tap the microphone button and start speaking — words will appear one after another.",
@@ -57,5 +57,14 @@
       "no-speech": "No speech detected",
       "error": "Error: {{message}}"
     }
+  },
+  "gigaam": {
+    "description": "Recognition on your device. Download a model once to use it offline.",
+    "size": "Each model is about 225 MB. English uses Multilingual.",
+    "ready": "Model downloaded and available offline.",
+    "cancel": "Cancel",
+    "download": "Download model",
+    "close": "Close",
+    "manage": "Offline speech models"
   }
 }

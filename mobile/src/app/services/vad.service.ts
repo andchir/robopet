@@ -44,7 +44,7 @@ export class VadService {
 
     if (!navigator.mediaDevices?.getUserMedia) {
       console.error('[VAD] navigator.mediaDevices.getUserMedia is NOT available');
-      return;
+      throw new Error('Microphone requires localhost or HTTPS');
     }
 
     try {
@@ -96,7 +96,8 @@ export class VadService {
         ` onset=${this.ONSET_MS}ms, release=${this.RELEASE_MS}ms`,
       );
     } catch (err) {
-      console.error('[VAD] Failed to start:', err);
+      this.stop();
+      throw err;
     }
   }
 
@@ -115,6 +116,12 @@ export class VadService {
     this.aboveThresholdSince = null;
     this.belowThresholdSince = null;
     console.log('[VAD] Stopped and cleaned up');
+  }
+
+  reset(): void {
+    this.isSpeechActive = false;
+    this.aboveThresholdSince = null;
+    this.belowThresholdSince = null;
   }
 
   private processAudio(data: Float32Array): void {
@@ -137,7 +144,7 @@ export class VadService {
     if (!this.isSpeechActive) {
       // ── Onset phase: accumulate sound, tolerate brief dips ──────────────
       if (isSound) {
-        if (!this.aboveThresholdSince) {
+        if (this.aboveThresholdSince === null) {
           this.aboveThresholdSince = now;
           this.belowThresholdSince = null;
           console.log(`[VAD] Onset started (RMS=${rms.toFixed(4)}), need ${this.ONSET_MS}ms…`);
@@ -156,7 +163,7 @@ export class VadService {
       } else {
         // Below threshold during onset — allow a grace period before resetting
         if (this.aboveThresholdSince !== null) {
-          if (!this.belowThresholdSince) {
+          if (this.belowThresholdSince === null) {
             this.belowThresholdSince = now;
           } else if (now - this.belowThresholdSince >= this.ONSET_GRACE_MS) {
             console.log(`[VAD] Onset reset after ${this.ONSET_GRACE_MS}ms silence (RMS=${rms.toFixed(4)})`);
@@ -170,7 +177,7 @@ export class VadService {
       if (isSound) {
         this.belowThresholdSince = null;
       } else {
-        if (!this.belowThresholdSince) {
+        if (this.belowThresholdSince === null) {
           this.belowThresholdSince = now;
           console.log(`[VAD] Silence detected (RMS=${rms.toFixed(4)}), waiting ${this.RELEASE_MS}ms…`);
         } else if (now - this.belowThresholdSince >= this.RELEASE_MS) {

@@ -4,7 +4,7 @@ import { Observable, Subject } from 'rxjs';
 /**
  * Central pub/sub for streaming speech-recognition output to UI components.
  *
- * Each STT backend (native, capacitor, whisper) pushes its partial / final
+ * Each STT backend (native, capacitor, gigaam) pushes its partial / final
  * results here, and the visualization component subscribes once. This way the
  * UI stays decoupled from the concrete recognition implementation.
  *
@@ -73,7 +73,7 @@ export class SpeechStreamService {
 
   /**
    * For backends that produce a single final transcript at the end (e.g.
-   * Whisper): start a fresh session and emit the words one-by-one with a
+   * GigaAm): start a fresh session and emit the words one-by-one with a
    * small delay so the visualization reads as a stream.
    *
    * If a new {@link startSession} is invoked before this finishes, the

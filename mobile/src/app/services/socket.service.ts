@@ -85,12 +85,6 @@ export class SocketService {
     this.socket?.emit('video_frame', { image: frameBase64 });
   }
 
-  sendAudioData(audioBase64: string): void {
-    const kb = ((audioBase64.length * 3) / 4 / 1024).toFixed(1);
-    console.log(`[Socket] → audio_data  size≈${kb} KB  lang=${this.language}  robot=${this.robotName}`);
-    this.socket?.emit('audio_data', { audio: audioBase64, language: this.language, robot_name: this.robotName });
-  }
-
   sendChatMessage(text: string): void {
     console.log(`[Socket] → chat_message  text="${text}"`);
     this.socket?.emit('chat_message', { text, language: this.language, robot_name: this.robotName });

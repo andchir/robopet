@@ -3,10 +3,10 @@ import { Preferences } from '@capacitor/preferences';
 import { PluginListenerHandle } from '@capacitor/core';
 import { SpeechRecognition } from '@capacitor-community/speech-recognition';
 import { TranslocoService } from '@jsverse/transloco';
-import { ChatService, SttMode } from '../../services/chat.service';
+import { normalizeSttMode, ChatService, SttMode } from '../../services/chat.service';
 import { CapacitorSpeechService } from '../../services/capacitor-speech.service';
 import { VoiceService } from '../../services/voice.service';
-import { WhisperService } from '../../services/whisper.service';
+import { GigaAmService } from '../../services/gigaam.service';
 
 interface SpeechWord {
   id: number;
@@ -49,7 +49,7 @@ function toLangCode(bcp47: string): string {
   standalone: false,
 })
 export class SpeechTestPage implements OnInit, OnDestroy {
-  sttMode: SttMode = 'native';
+  sttMode: SttMode = 'gigaam';
   ttsLang = 'en-US';
 
   isListening = false;
@@ -100,7 +100,7 @@ export class SpeechTestPage implements OnInit, OnDestroy {
   constructor(
     private chatService: ChatService,
     private voiceService: VoiceService,
-    private whisperService: WhisperService,
+    private gigaamService: GigaAmService,
     private capacitorSpeechService: CapacitorSpeechService,
     private transloco: TranslocoService,
     private zone: NgZone,
@@ -108,14 +108,14 @@ export class SpeechTestPage implements OnInit, OnDestroy {
   ) {}
 
   async ngOnInit(): Promise<void> {
-    const sttMode = (await Preferences.get({ key: 'sttMode' })).value as SttMode | null;
+    const sttMode = normalizeSttMode((await Preferences.get({ key: 'sttMode' })).value);
     if (sttMode) this.sttMode = sttMode;
 
     const lang = (await Preferences.get({ key: 'ttsLang' })).value;
     if (lang) this.ttsLang = lang;
 
-    if (this.sttMode === 'whisper') {
-      this.whisperService.preload();
+    if (this.sttMode === 'gigaam') {
+      this.gigaamService.preload();
     }
   }
 
@@ -141,8 +141,8 @@ export class SpeechTestPage implements OnInit, OnDestroy {
     this.permissionGranted = false;
     this.statusKey = '';
     this.log('mode-changed', { mode: this.modeLabel(this.sttMode) });
-    if (this.sttMode === 'whisper') {
-      this.whisperService.preload();
+    if (this.sttMode === 'gigaam') {
+      this.gigaamService.preload();
     }
   }
 
@@ -216,9 +216,9 @@ export class SpeechTestPage implements OnInit, OnDestroy {
   private addWord(text: string): void {
     const trimmed = text.trim();
     if (!trimmed) return;
-    // For whisper we already logged the full transcript once — skip per-word
+    // For gigaam we already logged the full transcript once — skip per-word
     // entries to avoid duplicating the same content in the diagnostic panel.
-    if (this.sttMode !== 'whisper') {
+    if (this.sttMode !== 'gigaam') {
       this.log('word', { text: trimmed }, 'success');
     }
     this.enqueue(() => this.processIncomingWord(trimmed));
@@ -436,7 +436,7 @@ export class SpeechTestPage implements OnInit, OnDestroy {
       } else if (this.sttMode === 'capacitor') {
         await this.startCapacitor();
       } else {
-        await this.startWhisper();
+        await this.startGigaAm();
       }
     } catch (err) {
       console.error('[SpeechTest] start failed', err);
@@ -455,7 +455,7 @@ export class SpeechTestPage implements OnInit, OnDestroy {
       } else if (this.sttMode === 'capacitor') {
         await this.stopCapacitor();
       } else {
-        await this.stopWhisper();
+        await this.stopGigaAm();
       }
       if (!silent) this.log('stopped', {}, 'info');
     } catch (err) {
@@ -704,13 +704,14 @@ export class SpeechTestPage implements OnInit, OnDestroy {
     await this.cleanupCapacitorListeners();
   }
 
-  // ── Whisper (record then stream words) ────────────────────────────────────
+  // ── GigaAm (record then stream words) ────────────────────────────────────
 
-  private async startWhisper(): Promise<void> {
+  private async startGigaAm(): Promise<void> {
+    await this.gigaamService.initialize(toLangCode(this.ttsLang));
     await this.voiceService.startRecording();
   }
 
-  private async stopWhisper(): Promise<void> {
+  private async stopGigaAm(): Promise<void> {
     let audioBase64 = '';
     try {
       audioBase64 = await this.voiceService.stopRecording();
@@ -731,7 +732,7 @@ export class SpeechTestPage implements OnInit, OnDestroy {
     this.log('transcribing', {}, 'info');
     try {
       const langCode = toLangCode(this.ttsLang);
-      const text = await this.whisperService.transcribe(audioBase64, langCode);
+      const text = await this.gigaamService.transcribe(audioBase64, langCode);
       this.statusKey = '';
       const trimmed = text.trim();
       if (trimmed) {
@@ -741,7 +742,7 @@ export class SpeechTestPage implements OnInit, OnDestroy {
       }
       await this.streamWordsWithDelay(text);
     } catch (err) {
-      console.error('[SpeechTest] Whisper transcription failed', err);
+      console.error('[SpeechTest] GigaAm transcription failed', err);
       this.statusKey = 'speech-test.status-error';
       this.log('error', { message: this.errorMessage(err) }, 'error');
     } finally {

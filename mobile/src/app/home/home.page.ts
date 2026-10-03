@@ -1,7 +1,8 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { VoiceButtonComponent } from '../components/voice-button/voice-button.component';
+import { Component, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { Subscription } from 'rxjs';
 import { Preferences } from '@capacitor/preferences';
-import { ChatService, LlmSettings, SttMode } from '../services/chat.service';
+import { normalizeSttMode, ChatService, LlmSettings } from '../services/chat.service';
 import { EmotionService } from '../services/emotion.service';
 import { VoiceService } from '../services/voice.service';
 import { RobotResponse } from '../models/types';
@@ -18,6 +19,16 @@ function toLangCode(bcp47: string): string {
   standalone: false,
 })
 export class HomePage implements OnInit, OnDestroy {
+  @ViewChild(VoiceButtonComponent) private voiceButton?: VoiceButtonComponent;
+
+  async ionViewWillEnter(): Promise<void> {
+    this.ttsLang = (await Preferences.get({key: 'ttsLang'})).value ?? 'en-US';
+  }
+
+  ionViewWillLeave(): void {
+    this.voiceButton?.stopCapture();
+  }
+
   private ttsLang = 'en-US';
   private subs: Subscription[] = [];
 
@@ -30,7 +41,7 @@ export class HomePage implements OnInit, OnDestroy {
   async ngOnInit(): Promise<void> {
     const lang = (await Preferences.get({ key: 'ttsLang' })).value ?? 'en-US';
     const robotName = (await Preferences.get({ key: 'robotName' })).value ?? 'RoboPet';
-    const sttMode = ((await Preferences.get({ key: 'sttMode' })).value ?? 'native') as SttMode;
+    const sttMode = normalizeSttMode((await Preferences.get({ key: 'sttMode' })).value);
     const llmBaseUrl = (await Preferences.get({ key: 'llmBaseUrl' })).value ?? '';
     const llmApiKey = (await Preferences.get({ key: 'llmApiKey' })).value ?? '';
     const llmModelName = (await Preferences.get({ key: 'llmModelName' })).value ?? '';

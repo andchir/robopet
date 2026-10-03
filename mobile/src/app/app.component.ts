@@ -1,3 +1,4 @@
+import { GigaAmService } from './services/gigaam.service';
 import { Component, OnInit } from '@angular/core';
 import { Preferences } from '@capacitor/preferences';
 import { TranslocoService } from '@jsverse/transloco';
@@ -9,7 +10,7 @@ import { TranslocoService } from '@jsverse/transloco';
   standalone: false,
 })
 export class AppComponent implements OnInit {
-  constructor(private transloco: TranslocoService) {}
+  constructor(private transloco: TranslocoService, public gigaam: GigaAmService) {}
 
   async ngOnInit(): Promise<void> {
     const { value: deviceId } = await Preferences.get({ key: 'deviceId' });

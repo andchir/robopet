@@ -210,3 +210,34 @@ __marimo__/
 .idea
 .vscode
 
+
+# Frontend dependencies, Angular caches, generated web/native builds
+node_modules/
+/mobile/.angular/
+/mobile/.ionic/
+/mobile/www/
+/mobile/dist/
+/mobile/coverage/
+/mobile/.cache/
+/mobile/ios/
+
+# Local configuration and credentials (keep documented examples)
+.env
+.env.*
+!.env.example
+!.env.sample
+*.jks
+*.keystore
+local.properties
+
+# Downloaded speech models and private recordings / test outputs
+*.onnx
+*.onnx.data
+*.tflite
+/mobile/test-results/
+/mobile/playwright-report/
+/mobile/test-audio/
+*.wav
+*.webm
+*.m4a
+*.pcm

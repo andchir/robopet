@@ -8,12 +8,12 @@
            : (state$ | async) === 'recording' ? 'danger'
            : (state$ | async) === 'loading' || (state$ | async) === 'transcribing' ? 'warning'
            : 'primary'"
-    [disabled]="((isDisabled$ | async) && !(isRecording$ | async)) || autoMode"
-    (touchstart)="onPress()"
-    (touchend)="onRelease()"
-    (touchcancel)="onRelease()"
-    (mousedown)="onPress()"
-    (mouseup)="onRelease()">
+    [disabled]="((isDisabled$ | async) && !(isRecording$ | async) && !starting) || autoMode"
+    style="touch-action: none"
+    (pointerdown)="onPointerDown($event)"
+    (pointerup)="onPointerUp($event)"
+    (pointercancel)="onPointerUp($event)"
+    (lostpointercapture)="onPointerUp($event)">
     <ion-icon
       [name]="autoMode ? 'mic-outline'
              : (isSpeaking$ | async) ? 'stop-circle-outline'
@@ -24,6 +24,7 @@
     </ion-icon>
   </ion-button>
 
+  <p *ngIf="voiceError" role="alert">{{ voiceError }}</p>
   <div class="auto-toggle">
     <span class="auto-label">{{ 'voice-button.auto' | transloco }}</span>
     <ion-toggle

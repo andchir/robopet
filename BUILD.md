@@ -13,8 +13,8 @@ This guide explains how to build an Android APK for the RoboPet app. The app run
 │  ┌────────────────────────────────────────┐  │
 │  │           Ionic / Angular WebView       │  │
 │  │                                        │  │
-│  │  WhisperService  — STT via ONNX        │  │
-│  │  (@xenova/transformers, runs locally)  │  │
+│  │  GigaAmService  — STT via ONNX        │  │
+│  │  (onnxruntime-web, runs locally)  │  │
 │  │                                        │  │
 │  │  NativeSpeechService — Web Speech API  │  │
 │  │  (window.SpeechRecognition, online)    │  │
@@ -39,22 +39,22 @@ The app supports three voice recognition modes, selectable in **Settings → Voi
 
 | Mode | Service | Internet required | Notes |
 |------|---------|:-----------------:|-------|
-| `whisper` | `WhisperService` (`@xenova/transformers`) | First launch only | Model (~150 MB) downloaded from Hugging Face CDN and cached in IndexedDB; fully offline afterwards |
+| `gigaam` | `GigaAmService` (`onnxruntime-web`) | Only on download button | Default. RU v3 and EN Multilingual models (~225 MB each), downloaded by button and stored in IndexedDB; offline afterwards |
 | `native` | `NativeSpeechService` (Web Speech API) | Yes | Uses `window.SpeechRecognition` inside the WebView — Android/Chrome routes audio to Google servers |
 | `capacitor` | `CapacitorSpeechService` (`@capacitor-community/speech-recognition`) | Usually yes | Uses the native Android `SpeechRecognizer` directly; can work offline on Android 13+ if an offline language pack is installed under Settings → Language → Offline speech recognition |
 
-### Voice flow (Whisper mode)
+### Voice flow (GigaAM mode)
 
 1. User holds the mic button → `capacitor-voice-recorder` captures audio.
-2. On release → `WhisperService.transcribe()` resamples audio to 16 kHz and runs Whisper ONNX inference locally in the WebView.
-3. The recognised text goes to `ChatService.processMessage()` — pure TypeScript keyword matching, no network call.
+2. On release → `GigaAmService.transcribe()` resamples audio to 16 kHz and runs GigaAM ONNX inference locally in the WebView.
+3. The recognised text goes to `ChatService.processMessage()` — TypeScript keyword matching, or the configured LLM API.
 4. `ChatService` emits a `RobotResponse` with text and emotion; the robot face animates and TTS speaks the reply.
 
 ### Voice flow (native / capacitor modes)
 
 1. User holds the mic button → recognition starts immediately (no audio buffering).
 2. On release → `stopListening()` is called; the in-flight promise resolves with the final transcript.
-3. Steps 3–4 are identical to Whisper mode above.
+3. Steps 3–4 are identical to GigaAM mode above.
 
 ---
 
@@ -62,13 +62,13 @@ The app supports three voice recognition modes, selectable in **Settings → Voi
 
 | Tool | Version | Notes |
 |------|---------|-------|
-| Node.js | ≥ 20 LTS | `node --version` |
+| Node.js | ≥ 22 LTS | `node --version` |
 | npm | ≥ 10 | bundled with Node |
 | Ionic CLI | ≥ 7 | `npm i -g @ionic/cli` |
 | Angular CLI | ≥ 20 | installed locally via npm |
 | Java JDK | 17 or **21** | `java -version`; required by Android Gradle. **Java 22+ is not supported by Gradle 8.x** — see [Troubleshooting](#troubleshooting) |
 | Android Studio | Hedgehog+ (2023.1+) | includes SDK, emulator |
-| Android SDK | API 35 (target) | install via SDK Manager |
+| Android SDK | API 36 (target) | install via SDK Manager |
 | Git | any | |
 
 > **Android SDK environment variables** — add these to your shell profile:
@@ -129,7 +129,7 @@ Edit `mobile/android/app/src/main/AndroidManifest.xml` and ensure these permissi
 <uses-permission android:name="android.permission.INTERNET" />
 ```
 
-> The `INTERNET` permission is required by the `native` and `capacitor` STT modes (both route audio to Google Speech servers by default). It is also needed on first launch in `whisper` mode to download the model from Hugging Face CDN.
+> The `INTERNET` permission is required by the `native` and `capacitor` STT modes (both route audio to Google Speech servers by default). It is also needed on manual model download in `gigaam` mode to download the model from Hugging Face CDN.
 
 ---
 
@@ -287,7 +287,7 @@ adb install mobile/android/app/build/outputs/apk/debug/app-debug.apk
 | Problem | Likely cause | Fix |
 |---------|-------------|-----|
 | WebView shows blank page | Web assets not synced | Re-run `npx cap sync android` |
-| Whisper model not loading | Network blocked on first launch | Allow internet access on first run; after that the model is cached offline |
+| GigaAM model not loading | Download failed or local storage is full | Open Settings → Offline speech models and retry the download with internet access and free storage |
 | Microphone permission denied | Runtime permission not granted | The app requests it on first mic button press; check App Settings on device |
 | TTS not speaking | Language not installed on device | Install the required language pack in Android Settings → Text-to-Speech |
 | Build error: SDK not found | `ANDROID_HOME` not set | Export `ANDROID_HOME` and add `platform-tools` to `PATH` |
@@ -320,3 +320,30 @@ org.gradle.java.home=/usr/lib/jvm/java-1.21.0-openjdk-amd64
 ```
 
 This setting only affects the Gradle daemon — your system `JAVA_HOME` stays unchanged.
+
+## Offline speech on desktop and Android
+
+Run `cd mobile && npm ci && npm start`, then open `http://localhost:4200` in a current Chrome/Edge browser. Microphone capture requires localhost or HTTPS. In Settings → Offline speech models, select Русский or English and press Download model. The dialog shows progress and supports cancellation/retry. Download is never automatic. Select the matching speech language in Settings and save.
+
+Russian uses the same GigaAM v3 E2E CTC int8 model and log-mel/CTC processing as [giga-pisar-android](https://github.com/moznoazachem/giga-pisar-android). English uses [GigaAM Multilingual CTC int8](https://huggingface.co/i2z1/gigaam-multilingual-ctc-onnx-int8), which also recognizes Russian but has moderate English accuracy. Both run in a Web Worker using locally bundled ONNX Runtime WASM (one thread, no COOP/COEP requirement). Audio is resampled to 16 kHz mono; long recordings are split near silence into chunks under 25 seconds. No audio is sent to an STT server. The old backend audio-upload endpoint has been removed; backend conversations accept `chat_message` text.
+
+Each model is about 225 MB. Downloads are checked by size/SHA-256 and vocabulary shape before an atomic IndexedDB save. Incomplete downloads are not installed. The app requests persistent storage; clearing site/app data removes models. Desktop localhost ports and Android each have separate storage and need their own download. An offline desktop session still needs the local dev server running; Android bundles the app and runtime in the APK. TTS voices must be installed on the device for offline replies; a configured remote LLM still requires internet.
+
+Hold the microphone button and release to recognize. On the first permission request, grant access and press again. With Auto enabled, speech lasting at least 280 ms followed by 800 ms of silence finishes the utterance and generates a reply. Recording is discarded during robot speech and resumes after TTS. Disabling Auto discards pending recognition. This is energy-based pause detection, not speaker identification; background noise can affect it.
+
+`npm run build && npx cap sync android` copies all local worker/WASM assets to Android. Use a current Android System WebView with WebAssembly SIMD support. `npm run test:stt` checks feature extraction/CTC/chunking; the voice-button and VAD Jasmine specs cover pause timing, quick release, duplicate events, TTS suppression, and stopping Auto during recognition.
+
+Android permissions are added automatically by the `capacitor:sync:after` hook, including microphone permission. The generated `mobile/android/` project stays outside Git; the hook is kept in the repository so a clean checkout can recreate it.
+
+Optional browser checks (with Playwright available):
+
+```bash
+# After npm run build; set PLAYWRIGHT_MODULE / CHROME_PATH if installed elsewhere.
+node scripts/browser-stt.cjs
+# For real model inference, provide ru.onnx, ru-vocab.txt, ru.f32 and/or
+# en.onnx, en-vocab.txt, en.f32 in a local fixture folder. PCM is 16 kHz mono float32.
+STT_FIXTURE_DIR=/path/to/fixtures node scripts/recognition.browser.cjs ru
+STT_FIXTURE_DIR=/path/to/fixtures node scripts/recognition.browser.cjs en
+```
+
+The real-model check validates the downloaded bytes against the production checksum, saves to IndexedDB, blocks external HTTPS access and runs WASM inference on the PCM fixture. Fixture models and recordings are not committed.

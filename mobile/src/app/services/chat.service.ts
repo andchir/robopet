@@ -207,7 +207,11 @@ function pickRandom<T>(arr: T[]): T {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
-export type SttMode = 'whisper' | 'native' | 'capacitor';
+export type SttMode = 'gigaam' | 'native' | 'capacitor';
+
+export function normalizeSttMode(value: string | null): SttMode {
+  return value === 'native' || value === 'capacitor' ? value : 'gigaam';
+}
 
 export interface LlmSettings {
   baseUrl: string;
@@ -226,7 +230,7 @@ const MAX_HISTORY = 20;
 export class ChatService {
   private language = 'en';
   private robotName = 'RoboPet';
-  private sttMode: SttMode = 'native';
+  private sttMode: SttMode = 'gigaam';
   private llmSettings: LlmSettings = { baseUrl: '', apiKey: '', modelName: '' };
   private readonly response$ = new Subject<RobotResponse>();
   private history: ChatMessage[] = [];

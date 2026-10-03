@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import { Injectable } from '@angular/core';
 import { VoiceRecorder } from 'capacitor-voice-recorder';
 import { TextToSpeech } from '@capacitor-community/text-to-speech';
@@ -27,6 +28,13 @@ export class VoiceService {
   }
 
   async requestPermission(): Promise<boolean> {
+    if (!Capacitor.isNativePlatform()) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({audio: true});
+        stream.getTracks().forEach(track => track.stop());
+        return true;
+      } catch { return false; }
+    }
     const result = await VoiceRecorder.requestAudioRecordingPermission();
     return result.value;
   }
@@ -38,8 +46,7 @@ export class VoiceService {
   }
 
   async stopRecording(): Promise<string> {
-    const result = await VoiceRecorder.stopRecording();
-    this.recording$.next(false);
+    const result = await VoiceRecorder.stopRecording().finally(() => this.recording$.next(false));
     const audio = result.value.recordDataBase64 ?? '';
     const kb = ((audio.length * 3) / 4 / 1024).toFixed(1);
     console.log(`[Voice] Recording stopped — audio size≈${kb} KB`);
@@ -128,7 +135,7 @@ export class VoiceService {
 
   /** Stop stream recording and return the captured audio as a base64 string. */
   stopRecordingFromStream(): Promise<string> {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       if (!this.mediaRecorder) {
         this.recording$.next(false);
         resolve('');
@@ -136,9 +143,12 @@ export class VoiceService {
       }
 
       const mr = this.mediaRecorder;
+      const chunks = this.recordChunks;
+      mr.onerror = () => { this.recording$.next(false); reject(new Error("Recording failed")); };
       mr.onstop = () => {
-        const blob = new Blob(this.recordChunks, { type: mr.mimeType });
+        const blob = new Blob(chunks, { type: mr.mimeType });
         const reader = new FileReader();
+        reader.onerror = () => { this.recording$.next(false); reject(new Error("Audio read failed")); };
         reader.onload = () => {
           const dataUrl = reader.result as string;
           const base64 = dataUrl.split(',')[1] ?? '';

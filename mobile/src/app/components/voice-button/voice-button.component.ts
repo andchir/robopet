@@ -2,8 +2,8 @@ import { Component, OnDestroy, OnInit } from '@angular/core';
 import { Preferences } from '@capacitor/preferences';
 import { Observable, Subscription, combineLatest, map } from 'rxjs';
 import { VoiceService } from '../../services/voice.service';
-import { ChatService, SttMode } from '../../services/chat.service';
-import { WhisperService } from '../../services/whisper.service';
+import { normalizeSttMode, ChatService } from '../../services/chat.service';
+import { GigaAmService } from '../../services/gigaam.service';
 import { NativeSpeechService } from '../../services/native-speech.service';
 import { CapacitorSpeechService } from '../../services/capacitor-speech.service';
 import { VadService } from '../../services/vad.service';
@@ -32,6 +32,28 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
   /** Whether auto (VAD-triggered) mode is active. */
   autoMode = false;
 
+  private recording = false;
+  starting = false;
+  private releasing = false;
+  private generation = 0;
+  private streamRecording = false;
+  voiceError = '';
+  private pointerId: number | null = null;
+
+  onPointerDown(event: PointerEvent): void {
+    if (this.autoMode || this.pointerId !== null || event.button !== 0) return;
+    event.preventDefault();
+    this.pointerId = event.pointerId;
+    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+    void this.onPress();
+  }
+
+  onPointerUp(event: PointerEvent): void {
+    if (this.pointerId !== event.pointerId) return;
+    this.pointerId = null;
+    void this.onRelease();
+  }
+
   private permissionGranted = false;
   private nativeListenPromise: Promise<string> | null = null;
   private capacitorListenPromise: Promise<string> | null = null;
@@ -47,7 +69,7 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
   constructor(
     private voiceService: VoiceService,
     private chatService: ChatService,
-    private whisperService: WhisperService,
+    private gigaamService: GigaAmService,
     private nativeSpeechService: NativeSpeechService,
     private capacitorSpeechService: CapacitorSpeechService,
     private vadService: VadService,
@@ -59,17 +81,17 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
       this.capacitorSpeechService.isListening$,
     ]).pipe(map(([rec, listen, capListen]) => rec || listen || capListen));
 
-    this.isLoading$ = this.whisperService.isLoading$;
+    this.isLoading$ = this.gigaamService.isLoading$;
 
     this.isTranscribing$ = combineLatest([
-      this.whisperService.isTranscribing$,
+      this.gigaamService.isTranscribing$,
       this.nativeSpeechService.isProcessing$,
       this.capacitorSpeechService.isProcessing$,
     ]).pipe(map(([wt, np, cp]) => wt || np || cp));
 
     // isSpeaking$ intentionally excluded: pressing while robot speaks now interrupts it.
     this.isDisabled$ = combineLatest([
-      this.whisperService.isBusy$,
+      this.gigaamService.isBusy$,
       this.nativeSpeechService.isProcessing$,
       this.capacitorSpeechService.isProcessing$,
     ]).pipe(map(([wb, np, cp]) => wb || np || cp));
@@ -90,11 +112,11 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
 
   async ngOnInit(): Promise<void> {
     const { value } = await Preferences.get({ key: 'sttMode' });
-    const mode = (value as SttMode) || 'native';
+    const mode = normalizeSttMode(value) || 'gigaam';
     this.chatService.setSttMode(mode);
 
-    if (mode === 'whisper') {
-      this.whisperService.preload();
+    if (mode === 'gigaam') {
+      this.gigaamService.preload();
     }
 
     this.speakingSub = this.voiceService.isSpeaking$.subscribe(s => {
@@ -102,9 +124,15 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
     });
   }
 
+  stopCapture(): void {
+    this.autoMode = false;
+    this.pointerId = null;
+    this.stopAutoMode();
+  }
+
   ngOnDestroy(): void {
     this.speakingSub?.unsubscribe();
-    this.stopAutoMode();
+    this.stopCapture();
   }
 
   // ── Auto mode ─────────────────────────────────────────────────────────────
@@ -112,14 +140,21 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
   async onAutoModeChange(): Promise<void> {
     console.log('[AutoMode] Toggle changed → autoMode =', this.autoMode);
     if (this.autoMode) {
-      await this.startAutoMode();
+      try { await this.startAutoMode(); }
+      catch (error) {
+        this.voiceError = String(error);
+        this.autoMode = false;
+        this.stopAutoMode();
+      }
     } else {
       this.stopAutoMode();
     }
   }
 
   private async startAutoMode(): Promise<void> {
-    console.log('[AutoMode] startAutoMode() — ensuring permission');
+    const generation = this.generation;
+    if (this.chatService.getSttMode() === 'gigaam') await this.gigaamService.initialize(this.chatService.getLanguage());
+    if (!this.autoMode || generation !== this.generation) return;
     const granted = await this.ensurePermission();
     if (!granted) {
       console.error('[AutoMode] Permission denied — cannot start auto mode');
@@ -127,12 +162,11 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
       return;
     }
 
-    console.log('[AutoMode] startAutoMode() — calling vadService.start()');
+    if (!this.autoMode || generation !== this.generation) return;
     await this.vadService.start();
-    console.log('[AutoMode] VAD started, pre-starting STT…');
+    if (!this.autoMode || generation !== this.generation) { this.vadService.stop(); return; }
 
-    await this.onPress();
-    console.log('[AutoMode] STT pre-started, subscribing to events');
+    if (!this.currentlySpeaking) await this.onPress();
 
     // Discard STT on every new TTS utterance, even if isSpeaking$ was already
     // true (e.g. thinking phrase immediately followed by LLM response).
@@ -147,8 +181,8 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
     const speakingTransitionSub = this.voiceService.isSpeaking$.subscribe(async (speaking) => {
       if (prevSpeaking && !speaking && this.autoMode) {
         console.log('[AutoMode] Robot stopped speaking — restarting STT');
-        this.discardActiveStt();
-        await this.onPress();
+        this.vadService.reset();
+        if (!this.isProcessingAutoSpeech) await this.onPress();
       }
       prevSpeaking = speaking;
     });
@@ -167,7 +201,7 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
       try {
         console.log('[AutoMode] Stopping STT and processing…');
         await this.onRelease();
-        if (this.autoMode) {
+        if (this.autoMode && !this.currentlySpeaking) {
           console.log('[AutoMode] Restarting STT for next utterance…');
           await this.onPress();
         }
@@ -182,16 +216,18 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
 
   private stopAutoMode(): void {
     console.log('[AutoMode] stopAutoMode() called');
+    this.discardActiveStt();
     this.vadService.stop();
     this.autoModeSubs.forEach(s => s.unsubscribe());
     this.autoModeSubs = [];
     this.isProcessingAutoSpeech = false;
-    this.discardActiveStt();
     console.log('[AutoMode] Stopped, subs cleaned up');
   }
 
   /** Stop any running STT session without processing its results. */
   private discardActiveStt(): void {
+    this.generation++;
+    this.recording = false;
     const mode = this.chatService.getSttMode();
     if (mode === 'native') {
       this.nativeSpeechService.stopListening();
@@ -200,9 +236,9 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
       this.capacitorSpeechService.stopListening();
       this.capacitorListenPromise = null;
     } else {
-      // In auto mode whisper uses the VAD stream via MediaRecorder; cancel it
+      // In auto mode gigaam uses the VAD stream via MediaRecorder; cancel it
       // without waiting for a result. Fall back to VoiceRecorder otherwise.
-      if (this.autoMode && this.vadService.getStream()) {
+      if (this.streamRecording) {
         this.voiceService.cancelStreamRecording();
       } else {
         this.voiceService.stopRecording().catch(() => {});
@@ -213,25 +249,33 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
   // ── Button press / release ────────────────────────────────────────────────
 
   async onPress(): Promise<void> {
-    const p = this.doPress();
-    this.pressPromise = p;
-    await p;
+    if (this.recording || this.starting || this.releasing) return;
+    this.starting = true;
+    this.voiceError = '';
+    const generation = this.generation;
+    this.pressPromise = (async () => {
+      try {
+        await this.doPress();
+        if (generation !== this.generation) this.discardActiveStt();
+      } catch (error) { this.voiceError = String(error); }
+      finally { this.starting = false; }
+    })();
+    await this.pressPromise;
   }
 
   async onRelease(): Promise<void> {
-    // Wait for onPress() to finish — prevents the race where a quick tap
-    // (touchstart+touchend in rapid succession) causes onRelease() to run
-    // before STT has been started, leaving it in a stuck state.
-    await this.pressPromise.catch(() => {});
-
-    const mode = this.chatService.getSttMode();
-    if (mode === 'native') {
-      await this.onReleaseNative();
-    } else if (mode === 'capacitor') {
-      await this.onReleaseCapacitor();
-    } else {
-      await this.onReleaseWhisper();
-    }
+    if (this.releasing) return;
+    this.releasing = true;
+    try {
+      await this.pressPromise;
+      if (!this.recording) return;
+      this.recording = false;
+      const mode = this.chatService.getSttMode();
+      if (mode === 'native') await this.onReleaseNative();
+      else if (mode === 'capacitor') await this.onReleaseCapacitor();
+      else await this.onReleaseGigaAm();
+    } catch (error) { this.voiceError = String(error); }
+    finally { this.releasing = false; }
   }
 
   private async doPress(): Promise<void> {
@@ -251,13 +295,15 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
     }
 
     const mode = this.chatService.getSttMode();
+    if (this.autoMode && this.currentlySpeaking) return;
     if (mode === 'native') {
       await this.onPressNative();
     } else if (mode === 'capacitor') {
       await this.onPressCapacitor();
     } else {
-      await this.onPressWhisper();
+      await this.onPressGigaAm();
     }
+    this.recording = true;
   }
 
   private async ensurePermission(): Promise<boolean> {
@@ -274,16 +320,18 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
     return this.permissionGranted;
   }
 
-  // ── Whisper (Xenova) mode ──────────────────────────────────────────────────
+  // ── GigaAM (ONNX Runtime) mode ──────────────────────────────────────────────────
 
-  private async onPressWhisper(): Promise<void> {
+  private async onPressGigaAm(): Promise<void> {
+    await this.gigaamService.initialize(this.chatService.getLanguage());
     // Clear the visualization at the start of a fresh utterance — words for
-    // this take will be streamed once Whisper finishes transcribing them.
+    // this take will be streamed once GigaAm finishes transcribing them.
     this.speechStream.startSession();
     // In auto mode the VAD already holds an open MediaStream — reuse it so
     // that MediaRecorder and the ScriptProcessorNode share a single capture
     // session. Opening a second getUserMedia on Android often fails silently.
     const vadStream = this.autoMode ? this.vadService.getStream() : null;
+    this.streamRecording = !!vadStream;
     if (vadStream) {
       this.voiceService.startRecordingFromStream(vadStream);
     } else {
@@ -291,11 +339,11 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
     }
   }
 
-  private async onReleaseWhisper(): Promise<void> {
+  private async onReleaseGigaAm(): Promise<void> {
+    const generation = this.generation;
     let audioBase64: string;
     try {
-      const vadStream = this.autoMode ? this.vadService.getStream() : null;
-      if (vadStream) {
+      if (this.streamRecording) {
         audioBase64 = await this.voiceService.stopRecordingFromStream();
       } else {
         audioBase64 = await this.voiceService.stopRecording();
@@ -311,18 +359,20 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
     const lang = this.chatService.getLanguage();
     let text = '';
     try {
-      text = await this.whisperService.transcribe(audioBase64, lang);
+      text = await this.gigaamService.transcribe(audioBase64, lang);
     } catch (err) {
+      this.voiceError = String(err);
       console.error('[VoiceButton] Transcription error:', err);
       return;
     }
 
+    if (generation !== this.generation) return;
     if (!text) {
       console.warn('[VoiceButton] Empty transcription — not sending');
       return;
     }
 
-    // Stream the recognized words into the visualization — Whisper produces
+    // Stream the recognized words into the visualization — GigaAm produces
     // its transcript all at once, so we fan it out word-by-word with a small
     // delay to mimic the live experience of the streaming backends.
     void this.speechStream.streamFinalTranscript(text);

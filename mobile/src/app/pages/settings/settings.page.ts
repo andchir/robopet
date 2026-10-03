@@ -1,8 +1,9 @@
+import { GigaAmService } from '../../services/gigaam.service';
 import { Component, OnInit } from '@angular/core';
 import { Preferences } from '@capacitor/preferences';
 import { ModalController, ToastController } from '@ionic/angular';
 import { TranslocoService } from '@jsverse/transloco';
-import { ChatService, LlmSettings, SttMode } from '../../services/chat.service';
+import { normalizeSttMode, ChatService, LlmSettings, SttMode } from '../../services/chat.service';
 import { QrDisplayModalComponent } from './qr-display-modal.component';
 import { QrScannerModalComponent } from './qr-scanner-modal.component';
 
@@ -21,13 +22,13 @@ export class SettingsPage implements OnInit {
   cameraPosition: 'front' | 'rear' = 'front';
   ttsLang = 'en-US';
   robotName = 'RoboPet';
-  sttMode: SttMode = 'native';
+  sttMode: SttMode = 'gigaam';
   llmBaseUrl = 'https://api.openai.com/v1';
   llmApiKey = '';
   llmModelName = 'gpt-4o-mini';
   deviceId = '';
 
-  constructor(
+  constructor(public gigaam: GigaAmService,
     private chatService: ChatService,
     private toastController: ToastController,
     private transloco: TranslocoService,
@@ -47,7 +48,7 @@ export class SettingsPage implements OnInit {
     if (camera.value) this.cameraPosition = camera.value as 'front' | 'rear';
     if (lang.value) this.ttsLang = lang.value;
     if (name.value) this.robotName = name.value;
-    if (sttMode.value) this.sttMode = sttMode.value as SttMode;
+    if (sttMode.value) this.sttMode = normalizeSttMode(sttMode.value);
     if (llmBaseUrl.value) this.llmBaseUrl = llmBaseUrl.value;
     if (llmApiKey.value) this.llmApiKey = llmApiKey.value;
     if (llmModelName.value) this.llmModelName = llmModelName.value;
