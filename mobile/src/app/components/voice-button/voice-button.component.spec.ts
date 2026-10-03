@@ -22,7 +22,7 @@ describe('Voice button and auto conversation', () => {
   beforeEach(() => {
     speaking = new BehaviorSubject(false); speechEnd = new Subject(); ttsStart = new Subject();
     voice = {
-      isSpeaking$: speaking, isRecording$: of(false), onTtsStart$: ttsStart,
+      isSpeaking$: speaking, isPlaying$: speaking, isPreparing$: of(false), isRecording$: of(false), onTtsStart$: ttsStart,
       requestPermission: jasmine.createSpy().and.resolveTo(true),
       startRecording: jasmine.createSpy().and.resolveTo(), stopRecording: jasmine.createSpy().and.resolveTo('audio'),
       startRecordingFromStream: jasmine.createSpy(), stopRecordingFromStream: jasmine.createSpy().and.resolveTo('audio'),
@@ -134,6 +134,8 @@ describe('Voice button and auto conversation', () => {
     const recording = new BehaviorSubject(false);
     const loading = new BehaviorSubject(false);
     const transcribing = new BehaviorSubject(false);
+    const preparingReply = new BehaviorSubject(false);
+    voice.isPreparing$ = preparingReply;
     voice.isRecording$ = recording;
     gigaam.isLoading$ = loading;
     gigaam.isTranscribing$ = transcribing;
@@ -173,7 +175,11 @@ describe('Voice button and auto conversation', () => {
     recording.next(false); transcribing.next(true); fixture.detectChanges();
     expect(button.color).toBe('warning');
     expect(button.querySelector('ion-spinner')).not.toBeNull();
-    transcribing.next(false); speaking.next(true); fixture.detectChanges();
+    transcribing.next(false); preparingReply.next(true); fixture.detectChanges();
+    expect(button.color).toBe('warning');
+    expect(button.querySelector('ion-spinner')).not.toBeNull();
+    expect(fixture.nativeElement.querySelector('[role=status]').textContent).toContain('voice-button.preparingReply');
+    preparingReply.next(false); speaking.next(true); fixture.detectChanges();
     expect(button.color).toBe('medium');
     expect(fixture.nativeElement.querySelector('[role=status]').textContent).toContain('voice-button.speaking');
     expect(button.querySelector('ion-spinner')).toBeNull();

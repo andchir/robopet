@@ -1,5 +1,8 @@
 <div class="speech-words" #stageEl>
-  <div class="word-stage">
+  <p class="empty-transcript" *ngIf="!currentWord && !transcript.length">
+    {{ 'home.emptyTranscript' | transloco }}
+  </p>
+  <div class="word-stage" *ngIf="currentWord">
     <span
       *ngIf="currentWord"
       class="spotlight"

@@ -10,7 +10,11 @@ import { BehaviorSubject, Observable, Subject } from 'rxjs';
 export class VoiceService {
   private readonly preparing$ = new BehaviorSubject<boolean>(false);
   readonly isPreparing$ = this.preparing$.asObservable();
+  /** The response is active (including synthesis); used to pause auto capture. */
   private readonly speaking$ = new BehaviorSubject<boolean>(false);
+  private readonly playing$ = new BehaviorSubject<boolean>(false);
+  /** Only actual playback should animate the character's mouth. */
+  readonly isPlaying$ = this.playing$.asObservable();
   private readonly recording$ = new BehaviorSubject<boolean>(false);
   private readonly ttsStart$ = new Subject<void>();
   private speakGeneration = 0;
@@ -19,6 +23,7 @@ export class VoiceService {
   private finishPlayback?: () => void;
   constructor(private supertonic: SupertonicService) {}
   private stopPlayback(): void {
+    this.playing$.next(false);
     this.source?.stop(); this.source = undefined;
     this.finishPlayback?.(); this.finishPlayback = undefined;
   }
@@ -75,35 +80,69 @@ export class VoiceService {
     this.ttsStart$.next();
     this.speaking$.next(true);
     this.preparing$.next(true);
-    // Resume during the user's gesture, before asynchronous model loading.
-    this.audioContext ??= new AudioContext();
-    const resumed = this.audioContext.resume().catch(() => undefined);
     try {
+      // Resume before asynchronous model loading, without treating a blocked
+      // audio context as successful playback.
+      this.audioContext ??= new AudioContext();
+      const resumed = this.audioContext.resume().then(() => true, () => false);
       await TextToSpeech.stop();
       const engine = engineOverride ?? (await Preferences.get({key: 'ttsEngine'})).value ?? 'supertonic';
       const voice = voiceOverride ?? (await Preferences.get({key: 'ttsVoice'})).value ?? 'M1';
       if (generation !== this.speakGeneration) return;
       if (engine === 'system') {
-        this.preparing$.next(false);
-        await TextToSpeech.speak({text, lang, rate: 1.0});
+        await this.speakSystem(text, lang, generation);
       } else {
         const result = await this.supertonic.synthesize(text, lang, voice);
         if (!result || generation !== this.speakGeneration) return;
-        await resumed;
+        const ready = await resumed;
         if (generation !== this.speakGeneration) return;
+        if (!ready) throw new Error('Audio playback is unavailable');
         const buffer = this.audioContext.createBuffer(1, result.audio.length, result.sampleRate);
         buffer.copyToChannel(new Float32Array(result.audio), 0);
         const source = this.audioContext.createBufferSource();
         source.buffer = buffer; source.connect(this.audioContext.destination); this.source = source;
         await new Promise<void>(resolve => {
           this.finishPlayback = resolve;
-          source.onended = () => {source.disconnect(); resolve();}; source.start(); this.preparing$.next(false);
+          source.onended = () => {source.disconnect(); resolve();};
+          source.start();
+          this.preparing$.next(false);
+          this.playing$.next(true);
         });
       }
     } catch (error) {
       if ((error as Error).message !== 'CANCELLED') console.error('[Voice] TTS error', error);
     } finally {
-      if (generation === this.speakGeneration) {this.preparing$.next(false); this.source = undefined; this.finishPlayback = undefined; this.speaking$.next(false);}
+      if (generation === this.speakGeneration) {this.playing$.next(false); this.preparing$.next(false); this.source = undefined; this.finishPlayback = undefined; this.speaking$.next(false);}
+    }
+  }
+
+  private async speakSystem(text: string, lang: string, generation: number): Promise<void> {
+    const started = () => {
+      if (generation !== this.speakGeneration) return;
+      this.preparing$.next(false);
+      this.playing$.next(true);
+    };
+    if (!Capacitor.isNativePlatform()) {
+      // The plugin's web implementation does not expose utterance.onstart.
+      await new Promise<void>((resolve, reject) => {
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = lang;
+        utterance.rate = 1;
+        utterance.onstart = started;
+        utterance.onend = () => resolve();
+        utterance.onerror = event => reject(new Error(event.error));
+        this.finishPlayback = resolve;
+        window.speechSynthesis.speak(utterance);
+      });
+      return;
+    }
+    // Native engines report the first spoken text range after synthesis.
+    const listener = await TextToSpeech.addListener('onRangeStart', started);
+    try {
+      if (generation !== this.speakGeneration) return;
+      await TextToSpeech.speak({text, lang, rate: 1.0});
+    } finally {
+      await listener.remove();
     }
   }
 

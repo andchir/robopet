@@ -1,26 +1,28 @@
-<ion-header [translucent]="true">
+<ion-header class="home-header" [translucent]="false">
   <ion-toolbar>
-    <ion-title>RoboPet</ion-title>
+    <ion-title>RoboPet<span class="brand-dot" aria-hidden="true"></span></ion-title>
     <ion-buttons slot="end">
       <ion-button routerLink="/settings">
-        <ion-icon slot="icon-only" name="settings-outline"></ion-icon>
+        <ion-icon slot="icon-only" name="settings-outline" aria-hidden="true"></ion-icon>
+        <span class="settings-label">{{ 'settings.title' | transloco }}</span>
       </ion-button>
     </ion-buttons>
   </ion-toolbar>
 </ion-header>
 
-<ion-content [fullscreen]="true">
-  <div class="home-layout">
-    <div class="face-area">
-      <app-robot-face></app-robot-face>
-    </div>
-
-    <div class="speech-area">
-      <app-speech-words></app-speech-words>
-    </div>
+<ion-content class="home-content" [scrollY]="false">
+  <main class="home-layout">
+    <section class="conversation-panel" [attr.aria-label]="'home.conversation' | transloco">
+      <div class="face-area">
+        <app-robot-face></app-robot-face>
+      </div>
+      <div class="speech-area">
+        <app-speech-words></app-speech-words>
+      </div>
+    </section>
 
     <div class="controls">
       <app-voice-button></app-voice-button>
     </div>
-  </div>
+  </main>
 </ion-content>

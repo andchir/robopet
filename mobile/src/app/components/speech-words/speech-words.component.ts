@@ -168,7 +168,6 @@ export class SpeechWordsComponent implements OnInit, OnDestroy {
       this.flipPreviousIntoTranscript(previous, fromRect);
     }
 
-    this.scrollTranscriptToEnd();
   }
 
   private scheduleIdleCommit(): void {
@@ -237,13 +236,6 @@ export class SpeechWordsComponent implements OnInit, OnDestroy {
           fill: 'backwards',
         },
       );
-    });
-  }
-
-  private scrollTranscriptToEnd(): void {
-    requestAnimationFrame(() => {
-      const el = this.transcriptContainer?.nativeElement;
-      if (el) el.scrollTop = el.scrollHeight;
     });
   }
 

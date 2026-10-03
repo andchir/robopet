@@ -27,7 +27,8 @@ export class VoiceButtonComponent implements OnInit, OnDestroy {
   state$: Observable<'idle' | 'recording' | 'loading' | 'transcribing'>;
 
   /** Exposed so the template can react to robot speaking state. */
-  readonly isSpeaking$ = this.voiceService.isSpeaking$;
+  readonly isSpeaking$ = this.voiceService.isPlaying$;
+  readonly isPreparingReply$ = this.voiceService.isPreparing$;
 
   /** Whether auto (VAD-triggered) mode is active. */
   autoMode = false;

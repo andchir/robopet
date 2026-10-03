@@ -1,34 +1,134 @@
+:host {
+  --home-surface: #f4f6f8;
+  --ion-text-color: #202c3e;
+  --ion-color-medium: #526176;
+  --ion-color-medium-rgb: 82, 97, 118;
+  --ion-color-primary-contrast: #ffffff;
+  --ion-color-danger-contrast: #ffffff;
+  --ion-color-warning-contrast: #202c3e;
+  --ion-color-medium-contrast: #ffffff;
+}
+
+.home-header {
+  box-shadow: none;
+
+  ion-toolbar {
+    --background: var(--home-surface);
+    --color: #202c3e;
+    --border-width: 0;
+    --padding-start: 8px;
+    --padding-end: 8px;
+  }
+
+  ion-title {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: -0.6px;
+  }
+
+  ion-button {
+    --color: #526176;
+  }
+}
+
+.brand-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-left: 5px;
+  border-radius: 50%;
+  background: #37ab97;
+}
+
+.home-content {
+  --background: var(--home-surface);
+}
+
 .home-layout {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  width: 100%;
+  max-width: 960px;
   height: 100%;
-  padding: 12px;
-  gap: 12px;
-}
-
-// Compact face panel — square, height-driven, centered horizontally so the
-// face fills its container without wasted side margins. Keeping it square
-// also lets the canvas's `min(w, h) / 320` scale formula use the full area,
-// so the eyes/mouth render at their largest possible size for the available
-// vertical space.
-.face-area {
-  flex: 0 0 auto;
-  height: clamp(220px, 38vh, 320px);
-  aspect-ratio: 1 / 1;
-  align-self: center;
   min-height: 0;
+  margin: 0 auto;
+  padding: 8px 16px calc(12px + env(safe-area-inset-bottom));
+  gap: 16px;
 }
 
-// Word stage + transcript stretches to fill any remaining vertical space.
-.speech-area {
+.conversation-panel {
+  position: relative;
   flex: 1 1 auto;
   min-height: 0;
+  overflow: hidden;
+  // Keep fixed transcript coordinates inside this shared stage.
+  transform: translateZ(0);
+  border: 1px solid #293548;
+  border-radius: 32px;
+  background: radial-gradient(ellipse at 50% 22%, #25374a 0%, #172332 48%, #121b28 100%);
+  box-shadow: 0 12px 32px rgb(18 27 40 / 12%);
+  color: #edf4fa;
+}
+
+.face-area {
+  position: absolute;
+  inset: 0 12px 28%;
   display: flex;
+  justify-content: center;
+
+  app-robot-face {
+    display: block;
+    width: 100%;
+    max-width: 440px;
+    height: 100%;
+  }
+}
+
+.speech-area {
+  position: fixed;
+  z-index: 1;
+  inset: auto 20px 20px;
+  height: 42%;
+  max-height: 220px;
+  pointer-events: none;
 }
 
 .controls {
   flex: 0 0 auto;
   display: flex;
   justify-content: center;
-  padding: 4px 0 calc(8px + env(safe-area-inset-bottom));
+  padding: 0 8px;
+}
+
+@media (min-width: 760px) {
+  .home-layout {
+    padding: 20px 32px calc(20px + env(safe-area-inset-bottom));
+    gap: 24px;
+  }
+
+  .speech-area { left: 15%; right: 15%; bottom: 28px; }
+}
+
+@media (max-height: 700px) {
+  .home-layout { gap: 10px; padding-top: 4px; padding-bottom: calc(4px + env(safe-area-inset-bottom)); }
+  .conversation-panel { border-radius: 24px; }
+  .speech-area { bottom: 12px; }
+}
+
+@media (orientation: landscape) and (max-height: 540px) {
+  .home-layout { flex-direction: row; gap: 20px; }
+  .conversation-panel { align-self: stretch; }
+  .controls { align-self: center; width: 220px; }
+  .face-area { right: 45%; bottom: 0; }
+  .speech-area { top: 16px; bottom: 16px; left: 52%; right: 16px; height: auto; max-height: none; }
+}
+
+.settings-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }

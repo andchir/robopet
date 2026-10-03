@@ -1,26 +1,59 @@
+:host {
+  display: block;
+  width: 100%;
+  max-width: 420px;
+}
+
 .voice-controls {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 8px;
+  align-items: stretch;
+  overflow: hidden;
+  border: 1px solid #dfe6ed;
+  border-radius: 24px;
+  background: #ffffff;
+  box-shadow: 0 4px 16px rgb(31 56 87 / 5%);
 }
 
 .voice-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
   margin: 0;
+  min-height: 42px;
+  padding: 10px 14px;
+  border-top: 1px solid #e6ecf1;
+  background: #f0f4f7;
+  line-height: 1.4;
   text-align: center;
-  font-size: 14px;
-  color: var(--ion-color-medium);
+  font-size: 13px;
+  color: #526176;
 }
 
 .capture-controls {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 10px;
+  padding: 12px;
+}
+
+[role="alert"] {
+  margin: 0;
+  padding: 10px 14px;
+  color: #ad2439;
+  font-size: 13px;
+  text-align: center;
 }
 
 .mic-btn {
-  width: 144px;
-  --border-radius: 9999px;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 56px;
+  margin: 0;
+  --box-shadow: 0 5px 14px rgb(31 56 87 / 12%);
+  --border-radius: 16px;
+  -webkit-user-select: none;
   user-select: none;
   -webkit-touch-callout: none;
 
@@ -29,17 +62,44 @@
   }
 }
 
-.auto-toggle {
-  display: flex;
-  flex-direction: column;
+.auto-mode-control {
+  flex: 0 0 auto;
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 8px;
+  height: 56px;
+  padding: 0 14px;
+  border: 1px solid #dfe6ed;
+  border-radius: 16px;
+  background: #f0f4f7;
+  color: #526176;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
 
-  .auto-label {
-    font-size: 12px;
-    font-weight: 500;
-    color: var(--ion-color-medium);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+  ion-icon {
+    font-size: 20px;
+    pointer-events: none;
   }
+
+  &.active {
+    background: #e2f4ed;
+    border-color: #87cdb6;
+    color: #14644f;
+  }
+
+  &:focus-visible {
+    outline: 3px solid #3387df;
+    outline-offset: 2px;
+  }
+
+  &:active { filter: brightness(0.96); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auto-mode-control { transition: none; }
 }

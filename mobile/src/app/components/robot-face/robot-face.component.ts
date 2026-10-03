@@ -63,7 +63,7 @@ export class RobotFaceComponent implements OnInit, OnDestroy {
       this.emotionService.currentParams$.subscribe(p => {
         this.targetParams = { ...p };
       }),
-      this.voiceService.isSpeaking$.subscribe(s => {
+      this.voiceService.isPlaying$.subscribe(s => {
         this.isSpeaking = s;
         if (!s) this.speakPhase = 0;
       }),
@@ -166,12 +166,8 @@ export class RobotFaceComponent implements OnInit, OnDestroy {
 
     const idleY = Math.sin(this.elapsed * 0.001) * 2 * scale;
 
-    ctx.fillStyle = this.params.bgColor;
-    ctx.fillRect(0, 0, w, h);
-
-    // Faceplate frame is drawn by the host element via CSS (border-radius +
-    // background) so the canvas paints features directly without an extra
-    // inner rounded outline.
+    // The face and transcript share the home panel's continuous background.
+    ctx.clearRect(0, 0, w, h);
 
     const eyeSpacing = 55 * scale;
     const eyeY = cy - 20 * scale + idleY;

@@ -1,5 +1,10 @@
 {
+  "home": {
+    "conversation": "Разговор с RoboPet",
+    "emptyTranscript": "Здесь появится то, что вы скажете"
+  },
   "voice-button": {
+    "preparingReply": "Готовлю ответ…",
     "speaking": "Отвечаю…",
     "preparing": "Готовлюсь слушать…",
     "listening": "Слушаю…",

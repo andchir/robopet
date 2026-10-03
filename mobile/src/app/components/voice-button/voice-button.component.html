@@ -4,19 +4,21 @@
       shape="round"
       size="large"
       class="mic-btn"
-      [color]="(isSpeaking$ | async) ? 'medium'
+      [color]="(isPreparingReply$ | async) ? 'warning'
+             : (isSpeaking$ | async) ? 'medium'
              : releasing ? 'warning'
              : (state$ | async) === 'recording' ? 'danger'
              : starting || releasing || (state$ | async) === 'loading' || (state$ | async) === 'transcribing' ? 'warning'
              : 'primary'"
       [disabled]="((isDisabled$ | async) && !(isRecording$ | async) && !starting) || releasing || autoMode"
       style="touch-action: none"
+      (contextmenu)="$event.preventDefault()"
       (pointerdown)="onPointerDown($event)"
       (pointerup)="onPointerUp($event)"
       (pointercancel)="onPointerCancel($event)"
       (lostpointercapture)="onPointerCancel($event)">
       <ion-spinner
-        *ngIf="releasing || (!(isRecording$ | async) && (starting || (isLoading$ | async) || (isTranscribing$ | async))); else statusIcon"
+        *ngIf="(isPreparingReply$ | async) || releasing || (!(isRecording$ | async) && (starting || (isLoading$ | async) || (isTranscribing$ | async))); else statusIcon"
         name="crescent"
         aria-label="Обработка речи">
       </ion-spinner>
@@ -29,16 +31,19 @@
       </ng-template>
     </ion-button>
 
-    <div class="auto-toggle">
-      <span class="auto-label">{{ 'voice-button.auto' | transloco }}</span>
-      <ion-toggle
-        [(ngModel)]="autoMode"
-        (ionChange)="onAutoModeChange()">
-      </ion-toggle>
-    </div>
+    <button
+      type="button"
+      class="auto-mode-control"
+      [class.active]="autoMode"
+      [attr.aria-pressed]="autoMode"
+      (click)="autoMode = !autoMode; onAutoModeChange()">
+      <ion-icon [name]="autoMode ? 'checkmark-circle' : 'ellipse-outline'" aria-hidden="true"></ion-icon>
+      <span>{{ 'voice-button.auto' | transloco }}</span>
+    </button>
   </div>
   <p class="voice-status" role="status" aria-live="polite">
-    {{ ((isLoading$ | async) ? 'voice-button.preparing'
+    {{ ((isPreparingReply$ | async) ? 'voice-button.preparingReply'
+        : (isLoading$ | async) ? 'voice-button.preparing'
         : (isSpeaking$ | async) ? 'voice-button.speaking'
         : releasing || (isTranscribing$ | async) ? 'voice-button.processing'
         : (isRecording$ | async) ? 'voice-button.listening'
