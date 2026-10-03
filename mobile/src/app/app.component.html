@@ -1,39 +1,47 @@
 <ion-app>
   <ion-router-outlet></ion-router-outlet>
-  <ion-modal [isOpen]="gigaam.dialogOpen" [backdropDismiss]="!gigaam.downloading" [canDismiss]="!gigaam.downloading" (didDismiss)="gigaam.dialogOpen = false">
+  <ion-modal class="model-dialog" [isOpen]="gigaam.dialogOpen" [backdropDismiss]="!gigaam.downloading" [canDismiss]="!gigaam.downloading" (didDismiss)="gigaam.dialogOpen = false">
     <ng-template>
       <ion-header><ion-toolbar><ion-title>GigaAM</ion-title></ion-toolbar></ion-header>
-      <ion-content class="ion-padding">
+      <ion-content class="ion-padding model-content">
         <p>{{ 'gigaam.description' | transloco }}</p>
         <p>{{ ('gigaam.language-' + gigaam.selectedLanguage) | transloco }}</p>
         <p>{{ 'gigaam.size' | transloco }}</p>
         <p *ngIf="gigaam.installed[gigaam.selectedLanguage]">{{ 'gigaam.ready' | transloco }}</p>
-        <div *ngIf="gigaam.downloading" aria-live="polite">
+        <div class="model-progress" *ngIf="gigaam.downloading" aria-live="polite">
           <ion-progress-bar [value]="gigaam.progress"></ion-progress-bar>
           <p>{{ gigaam.progress * 100 | number:'1.0-0' }}%</p>
-          <ion-button (click)="gigaam.cancelDownload()">{{ 'gigaam.cancel' | transloco }}</ion-button>
         </div>
         <p *ngIf="gigaam.error" role="alert">{{ gigaam.error }}</p>
-        <ion-button *ngIf="!gigaam.downloading" [disabled]="gigaam.installed[gigaam.selectedLanguage]" (click)="gigaam.download()">{{ 'gigaam.download' | transloco }}</ion-button>
-        <ion-button fill="clear" [disabled]="gigaam.downloading" (click)="gigaam.dialogOpen = false">{{ 'gigaam.close' | transloco }}</ion-button>
       </ion-content>
+      <ion-footer class="ion-no-border">
+        <div class="model-actions">
+          <ion-button expand="block" *ngIf="!gigaam.downloading" [disabled]="gigaam.installed[gigaam.selectedLanguage]" (click)="gigaam.download()">{{ 'gigaam.download' | transloco }}</ion-button>
+          <ion-button expand="block" fill="outline" *ngIf="gigaam.downloading" (click)="gigaam.cancelDownload()">{{ 'gigaam.cancel' | transloco }}</ion-button>
+          <ion-button expand="block" fill="outline" [disabled]="gigaam.downloading" (click)="gigaam.dialogOpen = false">{{ 'gigaam.close' | transloco }}</ion-button>
+        </div>
+      </ion-footer>
     </ng-template>
   </ion-modal>
-  <ion-modal [isOpen]="supertonic.dialogOpen && !gigaam.dialogOpen" [backdropDismiss]="!supertonic.downloading" [canDismiss]="!supertonic.downloading" (didDismiss)="supertonic.dialogOpen = false">
+  <ion-modal class="model-dialog" [isOpen]="supertonic.dialogOpen && !gigaam.dialogOpen" [backdropDismiss]="!supertonic.downloading" [canDismiss]="!supertonic.downloading" (didDismiss)="supertonic.dialogOpen = false">
     <ng-template>
       <ion-header><ion-toolbar><ion-title>Supertonic 3</ion-title></ion-toolbar></ion-header>
-      <ion-content class="ion-padding">
+      <ion-content class="ion-padding model-content">
         <p>{{ 'supertonic.description' | transloco }}</p>
         <p *ngIf="supertonic.installed">{{ 'gigaam.ready' | transloco }}</p>
-        <div *ngIf="supertonic.downloading" aria-live="polite">
+        <div class="model-progress" *ngIf="supertonic.downloading" aria-live="polite">
           <ion-progress-bar [value]="supertonic.progress"></ion-progress-bar>
           <p>{{ supertonic.progress * 100 | number:'1.0-0' }}%</p>
-          <ion-button (click)="supertonic.cancelDownload()">{{ 'gigaam.cancel' | transloco }}</ion-button>
         </div>
         <p *ngIf="supertonic.error" role="alert">{{ supertonic.error | transloco }}</p>
-        <ion-button *ngIf="!supertonic.downloading" [disabled]="supertonic.installed" (click)="supertonic.download()">{{ 'gigaam.download' | transloco }}</ion-button>
-        <ion-button fill="clear" [disabled]="supertonic.downloading" (click)="supertonic.dialogOpen = false">{{ 'gigaam.close' | transloco }}</ion-button>
       </ion-content>
+      <ion-footer class="ion-no-border">
+        <div class="model-actions">
+          <ion-button expand="block" *ngIf="!supertonic.downloading" [disabled]="supertonic.installed" (click)="supertonic.download()">{{ 'gigaam.download' | transloco }}</ion-button>
+          <ion-button expand="block" fill="outline" *ngIf="supertonic.downloading" (click)="supertonic.cancelDownload()">{{ 'gigaam.cancel' | transloco }}</ion-button>
+          <ion-button expand="block" fill="outline" [disabled]="supertonic.downloading" (click)="supertonic.dialogOpen = false">{{ 'gigaam.close' | transloco }}</ion-button>
+        </div>
+      </ion-footer>
     </ng-template>
   </ion-modal>
 </ion-app>

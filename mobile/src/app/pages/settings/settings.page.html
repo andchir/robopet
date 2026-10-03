@@ -8,6 +8,7 @@
 </ion-header>
 
 <ion-content class="ion-padding">
+  <div class="settings-layout">
   <ion-list>
     <ion-item>
       <ion-input
@@ -52,6 +53,12 @@
       </ion-select>
     </ion-item>
   </ion-list>
+  <div class="settings-actions">
+    <ion-button expand="block" fill="outline" (click)="gigaam.openModels(ttsLang)">
+      <ion-icon name="download-outline" slot="start"></ion-icon>
+      {{ 'gigaam.manage' | transloco }}
+    </ion-button>
+  </div>
 
   <ion-list>
     <ion-item>
@@ -66,8 +73,16 @@
       </ion-select>
     </ion-item>
   </ion-list>
-  <ion-button (click)="previewVoice()">{{ (previewing ? 'supertonic.stop' : 'supertonic.preview') | transloco }}</ion-button>
-  <ion-button *ngIf="ttsEngine === 'supertonic'" fill="outline" (click)="supertonic.openModels()">{{ 'supertonic.manage' | transloco }}</ion-button>
+  <div class="settings-actions settings-actions--pair">
+    <ion-button expand="block" (click)="previewVoice()">
+      <ion-icon [name]="previewing ? 'stop-outline' : 'volume-high-outline'" slot="start"></ion-icon>
+      {{ (previewing ? 'supertonic.stop' : 'supertonic.preview') | transloco }}
+    </ion-button>
+    <ion-button expand="block" *ngIf="ttsEngine === 'supertonic'" fill="outline" (click)="supertonic.openModels()">
+      <ion-icon name="download-outline" slot="start"></ion-icon>
+      {{ 'supertonic.manage' | transloco }}
+    </ion-button>
+  </div>
 
   <ion-list-header>
     <ion-label>{{ 'settings.llm-section' | transloco }}</ion-label>
@@ -105,7 +120,7 @@
     </ion-item>
   </ion-list>
 
-  <div class="ion-padding-top">
+  <div class="settings-actions">
     <ion-button expand="block" (click)="save()">
       {{ 'settings.save' | transloco }}
     </ion-button>
@@ -123,12 +138,12 @@
     </ion-item>
   </ion-list>
 
-  <div class="device-id-actions ion-padding-top">
+  <div class="settings-actions settings-actions--pair">
     <ion-button expand="block" fill="outline" (click)="showQrCode()">
       <ion-icon name="qr-code-outline" slot="start"></ion-icon>
       {{ 'settings.show-qr' | transloco }}
     </ion-button>
-    <ion-button expand="block" fill="outline" color="secondary" class="ion-margin-top" (click)="identify()">
+    <ion-button expand="block" fill="outline"  (click)="identify()">
       <ion-icon name="scan-outline" slot="start"></ion-icon>
       {{ 'settings.identify' | transloco }}
     </ion-button>
@@ -136,11 +151,11 @@
 
   <p class="device-id-hint">{{ 'settings.device-id-hint' | transloco }}</p>
 
-  <div class="ion-padding-top">
+  <div class="settings-actions">
     <ion-button expand="block" fill="outline" color="tertiary" routerLink="/speech-test">
       <ion-icon name="mic-outline" slot="start"></ion-icon>
       {{ 'settings.open-speech-test' | transloco }}
     </ion-button>
   </div>
-  <ion-button expand="block" (click)="gigaam.openModels(ttsLang)">{{ 'gigaam.manage' | transloco }}</ion-button>
+  </div>
 </ion-content>

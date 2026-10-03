@@ -2,3 +2,62 @@
   display: block;
   height: 100%;
 }
+
+.model-dialog {
+  --max-width: 520px;
+  --height: 480px;
+  --max-height: calc(100% - 32px);
+  --border-radius: 20px;
+}
+
+.model-content {
+  --padding-start: 24px;
+  --padding-end: 24px;
+  --padding-top: 12px;
+  line-height: 1.6;
+}
+
+.model-content [role='alert'] {
+  color: var(--ion-color-danger);
+  overflow-wrap: anywhere;
+}
+
+.model-progress {
+  margin-top: 24px;
+  padding: 20px;
+  border-radius: 12px;
+  background: var(--ion-color-light);
+
+  ion-progress-bar { border-radius: 4px; height: 6px; }
+  p { margin: 12px 0 0; text-align: center; font-variant-numeric: tabular-nums; }
+}
+
+.model-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 16px 24px max(24px, env(safe-area-inset-bottom));
+  background: var(--ion-background-color, #fff);
+
+  ion-button {
+    min-width: 0;
+    min-height: 52px;
+    height: auto;
+    margin: 0;
+    --border-radius: 12px;
+    --box-shadow: none;
+    --padding-top: 12px;
+    --padding-bottom: 12px;
+    --padding-start: 12px;
+    --padding-end: 12px;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0;
+    text-transform: none;
+    white-space: normal;
+  }
+}
+
+@media (max-width: 400px) {
+  .model-actions { grid-template-columns: 1fr; }
+}

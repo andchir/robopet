@@ -1,11 +1,55 @@
+.settings-layout {
+  max-width: 760px;
+  margin: 0 auto;
+  padding-bottom: 24px;
+}
+
 ion-list {
-  margin-top: 16px;
+  margin: 16px 0 0;
+}
+
+.settings-actions {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.settings-actions ion-button {
+  width: 100%;
+  min-width: 0;
+  min-height: 52px;
+  height: auto;
+  margin: 0;
+  --border-radius: 12px;
+  --padding-top: 14px;
+  --padding-bottom: 14px;
+  --padding-start: 16px;
+  --padding-end: 16px;
+  --box-shadow: none;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  white-space: normal;
+}
+
+.settings-actions ion-icon {
+  flex-shrink: 0;
+  font-size: 20px;
+}
+
+@media (min-width: 600px) {
+  .settings-actions--pair {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .settings-actions--pair > :only-child {
+    grid-column: 1 / -1;
+  }
 }
 
 .device-id-hint {
   font-size: 13px;
   color: var(--ion-color-medium);
   line-height: 1.5;
-  margin: 16px 0 24px;
-  padding: 0 4px;
+  margin: 12px 0 24px;
 }
