@@ -23,7 +23,8 @@
       <ion-select
         [label]="'settings.language' | transloco"
         labelPlacement="stacked"
-        [(ngModel)]="ttsLang">
+        [(ngModel)]="ttsLang"
+        (ngModelChange)="onSpeechLanguageChange()">
         <ion-select-option value="en-US">English</ion-select-option>
         <ion-select-option value="ru-RU">Русский</ion-select-option>
       </ion-select>
@@ -43,7 +44,8 @@
       <ion-select
         [label]="'settings.stt-mode' | transloco"
         labelPlacement="stacked"
-        [(ngModel)]="sttMode">
+        [(ngModel)]="sttMode"
+        (ngModelChange)="onSpeechLanguageChange()">
         <ion-select-option value="gigaam">{{ 'settings.stt-mode-gigaam' | transloco }}</ion-select-option>
         <ion-select-option value="native">{{ 'settings.stt-mode-native' | transloco }}</ion-select-option>
         <ion-select-option value="capacitor">{{ 'settings.stt-mode-capacitor' | transloco }}</ion-select-option>
@@ -124,5 +126,5 @@
       {{ 'settings.open-speech-test' | transloco }}
     </ion-button>
   </div>
-  <ion-button expand="block" (click)="gigaam.openModels()">{{ 'gigaam.manage' | transloco }}</ion-button>
+  <ion-button expand="block" (click)="gigaam.openModels(ttsLang)">{{ 'gigaam.manage' | transloco }}</ion-button>
 </ion-content>

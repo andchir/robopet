@@ -59,12 +59,14 @@
     }
   },
   "gigaam": {
-    "description": "Recognition on your device. Download a model once to use it offline.",
-    "size": "Each model is about 225 MB. English uses Multilingual.",
+    "description": "Download the speech model for your selected language once to use it offline.",
+    "size": "Model size: about 225 MB.",
     "ready": "Model downloaded and available offline.",
     "cancel": "Cancel",
     "download": "Download model",
     "close": "Close",
-    "manage": "Offline speech models"
+    "manage": "Offline speech models",
+    "language-ru": "Language: Russian",
+    "language-en": "Language: English"
   }
 }

@@ -26,8 +26,9 @@ const server=http.createServer((req,res)=>{
  let modelRequests=0, slow=false;
  await page.route('https://huggingface.co/**',route=>{modelRequests++;return slow ? route.fulfill({status:307,headers:{location:'http://127.0.0.1:14200/slow-model','access-control-allow-origin':'*'}}) : route.abort();});
  await page.goto('http://127.0.0.1:14200/settings');
- await page.getByText('Offline speech models',{exact:true}).click();
  await page.getByText('Download model',{exact:true}).waitFor();
+ await page.getByText('Language: English',{exact:true}).waitFor();
+ if(await page.locator('ion-modal ion-button').filter({hasText:'Multilingual'}).count())throw Error('Model selector still present');
  await page.waitForTimeout(1500);
  if(modelRequests)throw Error('Model downloaded automatically');
  await page.getByText('Download model',{exact:true}).click();
@@ -38,13 +39,21 @@ const server=http.createServer((req,res)=>{
  await page.getByText('Cancel',{exact:true}).click();
  await page.locator('ion-modal [role="alert"]').waitFor();
  await page.getByText('Close',{exact:true}).click();
+ await page.locator('ion-modal ion-content').waitFor({state:'hidden'});
  const status=await page.evaluate(()=>new Promise((resolve,reject)=>{
  const worker=new Worker('/assets/gigaam/worker.mjs',{type:'module'});
  worker.onmessage=({data})=>{worker.terminate();data.error?reject(data.error):resolve(data.result);};
- worker.onerror=e=>reject(e.message);worker.postMessage({id:1,type:'status',key:'ru'});
+ worker.onerror=e=>reject(e.message);worker.postMessage({id:1,type:'status',key:'en'});
  }));
  if(status!==false)throw Error('Failed download marked installed');
+ const languageSelect=page.locator('ion-select').filter({has:page.locator('ion-select-option[value="ru-RU"]')});
+ await languageSelect.evaluate(element=>{element.value='ru-RU';element.dispatchEvent(new CustomEvent('ionChange',{detail:{value:'ru-RU'},bubbles:true}));});
+ await page.getByText('Language: Russian',{exact:true}).waitFor();
+ await page.getByText('Close',{exact:true}).click();
+ await page.locator('ion-modal ion-content').waitFor({state:'hidden'});
+ await languageSelect.evaluate(element=>{element.value='en-US';element.dispatchEvent(new CustomEvent('ionChange',{detail:{value:'en-US'},bubbles:true}));});
+ await page.getByText('Language: English',{exact:true}).waitFor();
  if(errors.length)throw Error(errors.join('\n'));
- console.log('PASS: model dialog; no automatic download; network failure/retry; download progress/cancel; incomplete model not installed; bundled worker/runtime loads.');
+ console.log('PASS: automatic language model dialog on startup and language changes; no automatic download; network failure/retry; download progress/cancel; incomplete model not installed; bundled worker/runtime loads.');
  } finally {await browser.close();server.close();}
 })().catch(e=>{console.error(e);server.close();process.exitCode=1;});

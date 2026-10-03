@@ -1,3 +1,4 @@
+import { normalizeSttMode } from './services/chat.service';
 import { GigaAmService } from './services/gigaam.service';
 import { Component, OnInit } from '@angular/core';
 import { Preferences } from '@capacitor/preferences';
@@ -19,9 +20,9 @@ export class AppComponent implements OnInit {
     }
 
     const { value: ttsLang } = await Preferences.get({ key: 'ttsLang' });
-    if (ttsLang) {
-      const langCode = ttsLang.split('-')[0].toLowerCase();
-      this.transloco.setActiveLang(langCode);
-    }
+    const language = ttsLang ?? 'en-US';
+    this.transloco.setActiveLang(language.split('-')[0].toLowerCase());
+    const { value: mode } = await Preferences.get({ key: 'sttMode' });
+    if (normalizeSttMode(mode) === 'gigaam') await this.gigaam.checkLanguage(language);
   }
 }

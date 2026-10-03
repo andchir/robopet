@@ -55,6 +55,10 @@ export class SettingsPage implements OnInit {
     if (deviceId.value) this.deviceId = deviceId.value;
   }
 
+  async onSpeechLanguageChange(): Promise<void> {
+    if (this.sttMode === 'gigaam') await this.gigaam.checkLanguage(this.ttsLang);
+  }
+
   async save(): Promise<void> {
     await Preferences.set({ key: 'cameraPosition', value: this.cameraPosition });
     await Preferences.set({ key: 'ttsLang', value: this.ttsLang });
@@ -86,6 +90,7 @@ export class SettingsPage implements OnInit {
       color: 'success',
     });
     await toast.present();
+    await this.onSpeechLanguageChange();
   }
 
   async showQrCode(): Promise<void> {

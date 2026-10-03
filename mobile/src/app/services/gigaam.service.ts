@@ -15,7 +15,10 @@ export class GigaAmService {
   downloading = false;
   progress = 0;
   error = '';
-  selectedLanguage = 'ru';
+  private modelLanguage = 'en';
+  private requestedLanguage = 'en';
+  private languageCheck = 0;
+  get selectedLanguage(): string { return this.modelLanguage; }
   installed: Record<string, boolean> = {ru: false, en: false};
 
   constructor(private zone: NgZone) {}
@@ -41,15 +44,31 @@ export class GigaAmService {
     });
   }
 
-  async openModels(language = 'ru'): Promise<void> {
-    if (this.downloading) { this.dialogOpen = true; return; }
-    this.selectedLanguage = language.startsWith('en') ? 'en' : 'ru';
-    this.dialogOpen = true;
+  /** Resolve the model from the application's speech language, never from a model selector. */
+  async checkLanguage(language: string, showInstalled = false): Promise<boolean> {
+    const key = language.toLowerCase().startsWith('ru') ? 'ru' : 'en';
+    this.requestedLanguage = key;
+    const check = ++this.languageCheck;
+    if (this.downloading) return false;
+    this.modelLanguage = key;
     this.error = '';
     try {
-      this.installed['ru'] = await this.request('status', 'ru');
-      this.installed['en'] = await this.request('status', 'en');
-    } catch (error) { this.error = String(error); }
+      const available: boolean = await this.request('status', key);
+      if (check !== this.languageCheck) return false;
+      this.installed[key] = available;
+      this.dialogOpen = showInstalled || !available;
+      return available;
+    } catch (error) {
+      if (check === this.languageCheck) {
+        this.error = String(error);
+        this.dialogOpen = true;
+      }
+      return false;
+    }
+  }
+
+  async openModels(language: string): Promise<void> {
+    await this.checkLanguage(language, true);
   }
 
   async download(): Promise<void> {
@@ -61,7 +80,10 @@ export class GigaAmService {
       await this.request('download', key);
       this.installed[key] = true;
     } catch (error) { this.error = String(error); }
-    finally { this.downloading = false; }
+    finally {
+      this.downloading = false;
+      if (this.requestedLanguage !== key) await this.checkLanguage(this.requestedLanguage);
+    }
   }
 
   cancelDownload(): void { this.worker?.postMessage({type: 'cancel'}); }

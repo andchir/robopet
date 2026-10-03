@@ -5,8 +5,7 @@
       <ion-header><ion-toolbar><ion-title>GigaAM</ion-title></ion-toolbar></ion-header>
       <ion-content class="ion-padding">
         <p>{{ 'gigaam.description' | transloco }}</p>
-        <ion-button [disabled]="gigaam.downloading" (click)="gigaam.selectedLanguage = 'ru'" [fill]="gigaam.selectedLanguage === 'ru' ? 'solid' : 'outline'">Русский · v3</ion-button>
-        <ion-button [disabled]="gigaam.downloading" (click)="gigaam.selectedLanguage = 'en'" [fill]="gigaam.selectedLanguage === 'en' ? 'solid' : 'outline'">English · Multilingual</ion-button>
+        <p>{{ ('gigaam.language-' + gigaam.selectedLanguage) | transloco }}</p>
         <p>{{ 'gigaam.size' | transloco }}</p>
         <p *ngIf="gigaam.installed[gigaam.selectedLanguage]">{{ 'gigaam.ready' | transloco }}</p>
         <div *ngIf="gigaam.downloading" aria-live="polite">
