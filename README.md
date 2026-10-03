@@ -75,3 +75,18 @@ Real browser inference check (official files downloaded outside the repository):
 `MODEL_DIR=/path/to/files PLAYWRIGHT_MODULE=/path/to/playwright node mobile/scripts/supertonic.browser.cjs`.
 Build the frontend first. The check verifies model checksums and synthesizes RU/M1
 and EN/F1 with networking disabled. Android hardware still needs device validation.
+
+### Local answers and API availability
+
+Without a network connection or complete API settings, chat uses lightweight local
+responses and does not call the API. A failed/invalid API response or a 12-second
+timeout also falls back locally and disables further API attempts. Reconnecting
+permits another attempt after connection/server failures; saving API settings
+resets the block, including authentication/configuration errors. No background
+health checks run.
+
+When API access is available, local intents require whole-word phrase matches
+covering at least 75% of the utterance, with only polite words or the robot's name
+outside the match. Long phrases with only one or two matched words and questions
+with additional substantive words go to the API. Offline matching is more
+permissive. Tests: `src/app/services/chat.service.spec.ts` in the mobile app.

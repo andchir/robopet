@@ -15,6 +15,7 @@ describe('VoiceService offline speech lifecycle', () => {
   let source: any;
   let context: any;
   let speaking: boolean;
+  let preparing: boolean;
   beforeEach(async () => {
     supertonic = jasmine.createSpyObj('SupertonicService', ['synthesize', 'cancelSynthesis']);
     source = {connect: jasmine.createSpy(), disconnect: jasmine.createSpy(), start: jasmine.createSpy(), stop: jasmine.createSpy(), onended: null};
@@ -27,6 +28,7 @@ describe('VoiceService offline speech lifecycle', () => {
     await Preferences.set({key: 'ttsVoice', value: 'F3'});
     service = new VoiceService(supertonic);
     service.isSpeaking$.subscribe(value => speaking = value);
+    service.isPreparing$.subscribe(value => preparing = value);
   });
   afterEach(async () => {
     await Preferences.remove({key: 'ttsEngine'});
@@ -38,10 +40,12 @@ describe('VoiceService offline speech lifecycle', () => {
     const done = service.speak('Привет', 'ru-RU');
     await new Promise(r => setTimeout(r));
     expect(speaking).toBeTrue();
+    expect(preparing).toBeTrue();
     expect(supertonic.synthesize).toHaveBeenCalledWith('Привет', 'ru-RU', 'F3');
     synthesis.resolve({audio: new Float32Array(20), sampleRate: 44100});
     await new Promise(r => setTimeout(r));
     expect(source.start).toHaveBeenCalled(); expect(speaking).toBeTrue();
+    expect(preparing).toBeFalse();
     source.onended(); await done;
     expect(speaking).toBeFalse();
   });
@@ -51,9 +55,16 @@ describe('VoiceService offline speech lifecycle', () => {
     const done = service.speak('Hello', 'en-US', 'supertonic', 'M2');
     await new Promise(r => setTimeout(r));
     await service.stopSpeaking();
+    expect(preparing).toBeFalse();
     synthesis.resolve({audio: new Float32Array(20), sampleRate: 44100});
     await done;
     expect(source.start).not.toHaveBeenCalled(); expect(speaking).toBeFalse();
+  });
+  it('clears the spinner when the model download is required', async () => {
+    supertonic.synthesize.and.resolveTo(null);
+    await service.speak('Hello', 'en-US', 'supertonic', 'M1');
+    expect(preparing).toBeFalse(); expect(speaking).toBeFalse();
+    expect(source.start).not.toHaveBeenCalled();
   });
   it('uses the system engine when explicitly selected for preview', async () => {
     await service.speak('Hello', 'en-US', 'system', 'M1');

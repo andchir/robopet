@@ -74,8 +74,11 @@
     </ion-item>
   </ion-list>
   <div class="settings-actions settings-actions--pair">
-    <ion-button expand="block" (click)="previewVoice()">
-      <ion-icon [name]="previewing ? 'stop-outline' : 'volume-high-outline'" slot="start"></ion-icon>
+    <ion-button expand="block" (click)="previewVoice()" [attr.aria-busy]="previewing && (preparingVoice$ | async)">
+      <ion-spinner *ngIf="previewing && (preparingVoice$ | async); else previewIcon" name="crescent" slot="start" aria-hidden="true"></ion-spinner>
+      <ng-template #previewIcon>
+        <ion-icon [name]="previewing ? 'stop-outline' : 'volume-high-outline'" slot="start"></ion-icon>
+      </ng-template>
       {{ (previewing ? 'supertonic.stop' : 'supertonic.preview') | transloco }}
     </ion-button>
     <ion-button expand="block" *ngIf="ttsEngine === 'supertonic'" fill="outline" (click)="supertonic.openModels()">
@@ -84,44 +87,45 @@
     </ion-button>
   </div>
 
-  <ion-list-header>
-    <ion-label>{{ 'settings.llm-section' | transloco }}</ion-label>
-  </ion-list-header>
+  <section class="api-settings" aria-labelledby="api-settings-title">
+    <h2 id="api-settings-title">{{ 'settings.llm-section' | transloco }}</h2>
 
-  <ion-list>
-    <ion-item>
-      <ion-input
-        [label]="'settings.llm-base-url' | transloco"
-        labelPlacement="stacked"
-        type="url"
-        [(ngModel)]="llmBaseUrl"
-        placeholder="https://api.openai.com/v1">
-      </ion-input>
-    </ion-item>
+    <ion-list>
+      <ion-item>
+        <ion-input
+          [label]="'settings.llm-base-url' | transloco"
+          labelPlacement="stacked"
+          type="url"
+          [(ngModel)]="llmBaseUrl"
+          placeholder="https://api.openai.com/v1">
+        </ion-input>
+      </ion-item>
 
-    <ion-item>
-      <ion-input
-        [label]="'settings.llm-api-key' | transloco"
-        labelPlacement="stacked"
-        type="password"
-        [(ngModel)]="llmApiKey"
-        placeholder="sk-...">
-      </ion-input>
-    </ion-item>
+      <ion-item>
+        <ion-input
+          [label]="'settings.llm-api-key' | transloco"
+          labelPlacement="stacked"
+          type="password"
+          [(ngModel)]="llmApiKey"
+          placeholder="sk-...">
+        </ion-input>
+      </ion-item>
 
-    <ion-item>
-      <ion-input
-        [label]="'settings.llm-model' | transloco"
-        labelPlacement="stacked"
-        type="text"
-        [(ngModel)]="llmModelName"
-        placeholder="gpt-4o-mini">
-      </ion-input>
-    </ion-item>
-  </ion-list>
+      <ion-item>
+        <ion-input
+          [label]="'settings.llm-model' | transloco"
+          labelPlacement="stacked"
+          type="text"
+          [(ngModel)]="llmModelName"
+          [placeholder]="defaultLlmModel">
+        </ion-input>
+      </ion-item>
+    </ion-list>
+  </section>
 
   <div class="settings-actions">
-    <ion-button expand="block" (click)="save()">
+    <ion-button expand="block" color="success" (click)="save()">
+      <ion-icon name="checkmark-outline" slot="start"></ion-icon>
       {{ 'settings.save' | transloco }}
     </ion-button>
   </div>

@@ -8,6 +8,8 @@ import { BehaviorSubject, Observable, Subject } from 'rxjs';
 
 @Injectable({ providedIn: 'root' })
 export class VoiceService {
+  private readonly preparing$ = new BehaviorSubject<boolean>(false);
+  readonly isPreparing$ = this.preparing$.asObservable();
   private readonly speaking$ = new BehaviorSubject<boolean>(false);
   private readonly recording$ = new BehaviorSubject<boolean>(false);
   private readonly ttsStart$ = new Subject<void>();
@@ -70,6 +72,7 @@ export class VoiceService {
     this.supertonic.cancelSynthesis();
     this.ttsStart$.next();
     this.speaking$.next(true);
+    this.preparing$.next(true);
     // Resume during the user's gesture, before asynchronous model loading.
     this.audioContext ??= new AudioContext();
     const resumed = this.audioContext.resume().catch(() => undefined);
@@ -79,6 +82,7 @@ export class VoiceService {
       const voice = voiceOverride ?? (await Preferences.get({key: 'ttsVoice'})).value ?? 'M1';
       if (generation !== this.speakGeneration) return;
       if (engine === 'system') {
+        this.preparing$.next(false);
         await TextToSpeech.speak({text, lang, rate: 1.0});
       } else {
         const result = await this.supertonic.synthesize(text, lang, voice);
@@ -91,13 +95,13 @@ export class VoiceService {
         source.buffer = buffer; source.connect(this.audioContext.destination); this.source = source;
         await new Promise<void>(resolve => {
           this.finishPlayback = resolve;
-          source.onended = () => {source.disconnect(); resolve();}; source.start();
+          source.onended = () => {source.disconnect(); resolve();}; source.start(); this.preparing$.next(false);
         });
       }
     } catch (error) {
       if ((error as Error).message !== 'CANCELLED') console.error('[Voice] TTS error', error);
     } finally {
-      if (generation === this.speakGeneration) {this.source = undefined; this.finishPlayback = undefined; this.speaking$.next(false);}
+      if (generation === this.speakGeneration) {this.preparing$.next(false); this.source = undefined; this.finishPlayback = undefined; this.speaking$.next(false);}
     }
   }
 
@@ -105,6 +109,7 @@ export class VoiceService {
     ++this.speakGeneration;
     this.stopPlayback(); this.supertonic.cancelSynthesis();
     this.speaking$.next(false);
+    this.preparing$.next(false);
     try {await TextToSpeech.stop();} catch { /* Already stopped. */ }
   }
 

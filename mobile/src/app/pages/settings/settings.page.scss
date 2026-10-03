@@ -8,6 +8,35 @@ ion-list {
   margin: 16px 0 0;
 }
 
+.api-settings {
+  margin-top: 24px;
+  padding: 20px 16px 12px;
+  border: 1px solid var(--ion-color-step-200, #d7d8da);
+  border-radius: 16px;
+
+  h2 {
+    margin: 0 0 16px;
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.5;
+  }
+
+  ion-list {
+    margin: 0;
+    padding: 0;
+  }
+
+  ion-item {
+    --padding-start: 0;
+    --inner-padding-end: 0;
+  }
+
+  ion-item:last-child {
+    --border-width: 0;
+    --inner-border-width: 0;
+  }
+}
+
 .settings-actions {
   display: grid;
   gap: 12px;
@@ -52,4 +81,11 @@ ion-list {
   color: var(--ion-color-medium);
   line-height: 1.5;
   margin: 12px 0 24px;
+}
+
+.settings-actions ion-spinner {
+  flex: 0 0 20px;
+  width: 20px;
+  height: 20px;
+  margin-inline-end: 12px;
 }

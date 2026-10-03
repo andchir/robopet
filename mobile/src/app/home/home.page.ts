@@ -1,3 +1,4 @@
+import { loadLlmModel } from '../services/llm-defaults';
 import { VoiceButtonComponent } from '../components/voice-button/voice-button.component';
 import { Component, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { Subscription } from 'rxjs';
@@ -42,9 +43,9 @@ export class HomePage implements OnInit, OnDestroy {
     const lang = (await Preferences.get({ key: 'ttsLang' })).value ?? 'en-US';
     const robotName = (await Preferences.get({ key: 'robotName' })).value ?? 'RoboPet';
     const sttMode = normalizeSttMode((await Preferences.get({ key: 'sttMode' })).value);
-    const llmBaseUrl = (await Preferences.get({ key: 'llmBaseUrl' })).value ?? '';
+    const llmBaseUrl = (await Preferences.get({ key: 'llmBaseUrl' })).value ?? 'https://api.openai.com/v1';
     const llmApiKey = (await Preferences.get({ key: 'llmApiKey' })).value ?? '';
-    const llmModelName = (await Preferences.get({ key: 'llmModelName' })).value ?? '';
+    const llmModelName = await loadLlmModel(llmBaseUrl, (await Preferences.get({ key: 'llmModelName' })).value);
 
     this.ttsLang = lang;
     this.chatService.setLanguage(toLangCode(lang));

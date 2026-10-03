@@ -1,4 +1,5 @@
-import { Injectable } from '@angular/core';
+import { DEFAULT_LLM_MODEL } from './llm-defaults';
+import { Injectable, OnDestroy } from '@angular/core';
 import { Observable, Subject } from 'rxjs';
 import { Emotion, RobotResponse } from '../models/types';
 
@@ -127,19 +128,6 @@ const RESPONSES: Record<string, Record<Intent, string[]>> = {
   },
 };
 
-const ERROR_RESPONSES: Record<string, string[]> = {
-  en: [
-    "Sorry, I can't answer right now!",
-    "Oops, something went wrong. Try again later!",
-    "My brain glitched! Ask me again?",
-  ],
-  ru: [
-    'Извини, я сейчас не могу ответить!',
-    'Ой, что-то пошло не так. Попробуй позже!',
-    'Мои мозги дали сбой! Спроси ещё раз?',
-  ],
-};
-
 // Order matters: more specific phrases first
 const KEYWORDS: Record<string, Record<string, string[]>> = {
   en: {
@@ -190,17 +178,39 @@ const KEYWORDS: Record<string, Record<string, string[]>> = {
   },
 };
 
-function detectIntent(text: string, lang: string): Intent {
-  const normalized = text.toLowerCase().trim();
-  const langKw = KEYWORDS[lang] ?? KEYWORDS['en'];
-  for (const [intent, phrases] of Object.entries(langKw)) {
+function words(text: string): string[] {
+  return text.toLowerCase().normalize('NFKC').replace(/ё/g, 'е').replace(/[’']/g, '')
+    .match(/[\p{L}\p{N}]+/gu) ?? [];
+}
+
+/** Count distinct matched word positions, not overlapping keyword aliases. */
+export function detectIntent(text: string, lang: string, strict = false, robotName = 'RoboPet'): Intent {
+  const input = words(text);
+  if (!input.length) return 'default';
+  const fillers = new Set(words(`please kindly ну пожалуйста ${robotName}`));
+  let best: Intent = 'default', bestCount = 0, tied = false;
+  for (const [intent, phrases] of Object.entries(KEYWORDS[lang] ?? KEYWORDS['en'])) {
+    const matched = new Set<number>();
     for (const phrase of phrases) {
-      if (normalized.includes(phrase)) {
-        return intent as Intent;
+      // These fragments are too ambiguous for online routing on their own.
+      if (strict && ['кто такой', 'всего', 'как у тебя'].includes(phrase)) continue;
+      const tokens = words(phrase);
+      for (let i = 0; i <= input.length - tokens.length; i++) {
+        if (tokens.every((word, j) => input[i + j] === word)) {
+          tokens.forEach((_, j) => matched.add(i + j));
+        }
       }
     }
+    if (strict) {
+      if (matched.size / input.length < 0.75) continue;
+      if (input.length > 6 && matched.size < 3) continue;
+      // Extra substantive words usually mean a different or extended question.
+      if (input.some((word, i) => !matched.has(i) && !fillers.has(word))) continue;
+    }
+    if (matched.size > bestCount) {best = intent as Intent; bestCount = matched.size; tied = false;}
+    else if (matched.size && matched.size === bestCount) tied = true;
   }
-  return 'default';
+  return strict && tied ? 'default' : best;
 }
 
 function pickRandom<T>(arr: T[]): T {
@@ -227,13 +237,29 @@ export interface ChatMessage {
 const MAX_HISTORY = 20;
 
 @Injectable({ providedIn: 'root' })
-export class ChatService {
+export class ChatService implements OnDestroy {
   private language = 'en';
   private robotName = 'RoboPet';
   private sttMode: SttMode = 'gigaam';
   private llmSettings: LlmSettings = { baseUrl: '', apiKey: '', modelName: '' };
   private readonly response$ = new Subject<RobotResponse>();
   private history: ChatMessage[] = [];
+  private apiUnavailable: 'connection' | 'configuration' | null = null;
+
+  private readonly onOnline = () => {
+    if (this.apiUnavailable === 'connection') this.apiUnavailable = null;
+  };
+
+  constructor() {
+    // A new network connection permits one new attempt, without background probes.
+    window.addEventListener('online', this.onOnline);
+  }
+
+  ngOnDestroy(): void {
+    window.removeEventListener('online', this.onOnline);
+    this.llmAbortController?.abort();
+    this.llmAbortController = null;
+  }
 
   /** True while an LLM call is in flight or the LLM response is the last one emitted. */
   private isInLlmCycle = false;
@@ -267,7 +293,12 @@ export class ChatService {
   }
 
   setLlmSettings(settings: LlmSettings): void {
-    this.llmSettings = settings;
+    this.llmAbortController?.abort();
+    this.llmAbortController = null;
+    this.isInLlmCycle = false;
+    this.llmSettings = { ...settings };
+    // Saving API settings is also an explicit retry after an unavailable endpoint.
+    this.apiUnavailable = null;
   }
 
   getHistory(): ReadonlyArray<ChatMessage> {
@@ -322,76 +353,82 @@ export class ChatService {
             { role: 'system', content: systemPrompt },
             ...this.history,
           ],
-          max_tokens: 150,
+          ...(modelName === DEFAULT_LLM_MODEL
+            ? {max_completion_tokens: 150, reasoning_effort: 'none'}
+            : {max_tokens: 150}),
         }),
       });
+      if (signal.aborted) return null;
       if (!response.ok) {
         console.error(`[Chat] LLM API error: ${response.status} ${response.statusText}`);
+        this.apiUnavailable = [400, 401, 403, 404, 422].includes(response.status) ? 'configuration' : 'connection';
         return null;
       }
       const data = await response.json();
-      return (data.choices?.[0]?.message?.content as string) ?? null;
+      if (signal.aborted) return null;
+      const content = data.choices?.[0]?.message?.content;
+      if (typeof content !== 'string' || !content.trim()) {this.apiUnavailable = 'connection'; return null;}
+      return content.trim();
     } catch (error) {
-      if ((error as Error).name === 'AbortError') {
+      if (signal.aborted || (error as Error).name === 'AbortError') {
         console.log('[Chat] LLM request aborted');
         return null;
       }
+      this.apiUnavailable = 'connection';
       console.error('[Chat] LLM call failed:', error);
       return null;
     }
   }
 
+  private replyLocally(userText: string, strict = false): void {
+    const intent = detectIntent(userText, this.language, strict, this.robotName);
+    const responses = RESPONSES[this.language] ?? RESPONSES['en'];
+    const text = pickRandom(responses[intent]).replace('{name}', this.robotName);
+    this.addToHistory({role: 'assistant', content: text});
+    this.response$.next({text, emotion: INTENT_EMOTIONS[intent]});
+  }
+
   processMessage(userText: string): void {
-    const intent = detectIntent(userText, this.language);
-    console.log(`[Chat] intent="${intent}" lang="${this.language}"`);
-    console.log(`[Chat] history:`, this.history);
+    if (!userText.trim()) return;
+    // A later question must also invalidate an earlier request when answered locally.
+    this.llmAbortController?.abort();
+    this.llmAbortController = null;
+    this.isInLlmCycle = false;
+    this.addToHistory({role: 'user', content: userText});
 
-    this.addToHistory({ role: 'user', content: userText });
-
-    const wordsCount = userText.split(' ').length;
-
-    if ((intent === 'default' || wordsCount > 3) && this.isLlmConfigured()) {
-      const langResponses = RESPONSES[this.language] ?? RESPONSES['en'];
-
-      if (this.skipThinkingPhrase) {
-        this.skipThinkingPhrase = false;
-        console.log('[Chat] Skipping thinking phrase (interrupted during LLM cycle)');
-      } else {
-        const thinkingPhrases = langResponses['thinking'];
-        const thinkingText = pickRandom(thinkingPhrases);
-        this.response$.next({ text: thinkingText, emotion: 'thinking' });
-      }
-
-      this.isInLlmCycle = true;
-      const controller = new AbortController();
-      this.llmAbortController = controller;
-
-      this.callLlm(controller.signal).then(apiText => {
-        if (controller.signal.aborted) return;
-        this.isInLlmCycle = false;
-        this.llmAbortController = null;
-        if (apiText) {
-          const trimmed = apiText.trim();
-          console.log(`[Chat] LLM response: "${trimmed}"`);
-          this.addToHistory({ role: 'assistant', content: trimmed });
-          this.response$.next({ text: trimmed, emotion: 'neutral' });
-        } else {
-          const errorPhrases = ERROR_RESPONSES[this.language] ?? ERROR_RESPONSES['en'];
-          const errorText = pickRandom(errorPhrases);
-          this.addToHistory({ role: 'assistant', content: errorText });
-          this.response$.next({ text: errorText, emotion: 'sad' });
-        }
-      });
+    const apiAvailable = navigator.onLine !== false && this.isLlmConfigured() && !this.apiUnavailable;
+    if (!apiAvailable || detectIntent(userText, this.language, true, this.robotName) !== 'default') {
+      this.skipThinkingPhrase = false;
+      this.replyLocally(userText, !!apiAvailable);
       return;
     }
 
-    this.isInLlmCycle = false;
-    const langResponses = RESPONSES[this.language] ?? RESPONSES['en'];
-    const phrases = langResponses[intent] ?? langResponses['default'];
-    const text = pickRandom(phrases).replace('{name}', this.robotName);
-    const emotion = INTENT_EMOTIONS[intent];
-    console.log(`[Chat] text="${text}"`);
-    this.addToHistory({ role: 'assistant', content: text });
-    this.response$.next({ text, emotion });
+    if (!this.skipThinkingPhrase) {
+      const responses = RESPONSES[this.language] ?? RESPONSES['en'];
+      this.response$.next({text: pickRandom(responses.thinking), emotion: 'thinking'});
+    }
+    this.skipThinkingPhrase = false;
+    this.isInLlmCycle = true;
+    const controller = new AbortController();
+    this.llmAbortController = controller;
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      if (this.llmAbortController !== controller) return;
+      timedOut = true;
+      this.apiUnavailable = 'connection';
+      controller.abort();
+    }, 12000);
+
+    this.callLlm(controller.signal).then(apiText => {
+      if (this.llmAbortController !== controller || (controller.signal.aborted && !timedOut)) return;
+      this.isInLlmCycle = false;
+      this.llmAbortController = null;
+      if (apiText) {
+        this.addToHistory({role: 'assistant', content: apiText});
+        this.response$.next({text: apiText, emotion: 'neutral'});
+      } else {
+        this.replyLocally(userText);
+      }
+    }).finally(() => clearTimeout(timer));
   }
 }

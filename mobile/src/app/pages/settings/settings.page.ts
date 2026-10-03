@@ -1,3 +1,4 @@
+import { DEFAULT_LLM_MODEL, loadLlmModel } from '../../services/llm-defaults';
 import { SupertonicService } from '../../services/supertonic.service';
 import { VoiceService } from '../../services/voice.service';
 import { GigaAmService } from '../../services/gigaam.service';
@@ -28,11 +29,13 @@ export class SettingsPage implements OnInit {
   ttsVoice = 'M1';
   voices = ['M1','M2','M3','M4','M5','F1','F2','F3','F4','F5'];
   previewing = false;
+  readonly preparingVoice$ = this.voice.isPreparing$;
   robotName = 'RoboPet';
   sttMode: SttMode = 'gigaam';
   llmBaseUrl = 'https://api.openai.com/v1';
   llmApiKey = '';
-  llmModelName = 'gpt-4o-mini';
+  llmModelName = DEFAULT_LLM_MODEL;
+  readonly defaultLlmModel = DEFAULT_LLM_MODEL;
   deviceId = '';
 
   constructor(public gigaam: GigaAmService, public supertonic: SupertonicService, private voice: VoiceService,
@@ -61,7 +64,7 @@ export class SettingsPage implements OnInit {
     if (sttMode.value) this.sttMode = normalizeSttMode(sttMode.value);
     if (llmBaseUrl.value) this.llmBaseUrl = llmBaseUrl.value;
     if (llmApiKey.value) this.llmApiKey = llmApiKey.value;
-    if (llmModelName.value) this.llmModelName = llmModelName.value;
+    this.llmModelName = await loadLlmModel(this.llmBaseUrl, llmModelName.value);
     if (deviceId.value) this.deviceId = deviceId.value;
   }
 
@@ -72,9 +75,10 @@ export class SettingsPage implements OnInit {
   async previewVoice(): Promise<void> {
     if (this.previewing) {await this.voice.stopSpeaking(); return;}
     this.previewing = true;
+    const name = this.robotName.trim() || 'RoboPet';
     try {await this.voice.speak(this.ttsLang.startsWith('ru')
-      ? 'Привет! Я Робопет. Вот так будет звучать мой голос.'
-      : 'Hello! I am RoboPet. This is how my voice will sound.', this.ttsLang, this.ttsEngine, this.ttsVoice);
+      ? `Привет! Я ${name}. Вот так будет звучать мой голос.`
+      : `Hello! I am ${name}. This is how my voice will sound.`, this.ttsLang, this.ttsEngine, this.ttsVoice);
     } finally {this.previewing = false;}
   }
   ionViewWillLeave(): void {if (this.previewing) void this.voice.stopSpeaking();}
